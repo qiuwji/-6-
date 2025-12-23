@@ -5,6 +5,7 @@ import Header from './component/Header/Header';
 import Footer from './component/Footer/Footer';
 import LoginPage from './pages/login/LoginPage';
 import RegisterPage from './pages/register/Register';
+import SearchResultPage from './pages/seach/SearchResultPage';
 
 const App: React.FC = () => {
   return (
@@ -16,11 +17,13 @@ const App: React.FC = () => {
         {/* 主要内容区域，使用 flex-grow 使其可以伸缩 */}
         <main className="grow">
           <div className="app-container">
-            <Routes>
+            {/* <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
-            </Routes>
+              <Route path="/search" element={<SearchResultPage />} />
+            </Routes> */}
+            <SearchResultPage></SearchResultPage>
           </div>
         </main>
         <Footer />
