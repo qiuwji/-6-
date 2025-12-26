@@ -1,13 +1,13 @@
 import { useState } from "react";
 
-interface BookDetailProps {
+interface BookOverviewProps {
   bookName: string;
   book_cover: string;
   author: string;
   publisher: string;
   ISBN: string;
   price: number;
-  discount_rate?: number; // 折扣率，如0.8表示8折
+  discount_rate?: number;
   discount_start?: string;
   discount_finish?: string;
   comment_count: number;
@@ -18,7 +18,7 @@ interface BookDetailProps {
   isFavorited?: boolean;
 }
 
-const BookDetail: React.FC<BookDetailProps> = ({
+const BookOverview: React.FC<BookOverviewProps> = ({
   bookName,
   book_cover,
   author,
@@ -45,7 +45,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const savedAmount = discount_rate ? price - currentPrice : 0;
   
   // 计算平均评分
-  const avgScore = comment_count > 0 ? total_score / comment_count : 0; // 假设总分为5分制
+  const avgScore = comment_count > 0 ? total_score / comment_count : 0;
 
   const handleFavoriteClick = () => {
     setIsFavorited(!isFavorited);
@@ -74,8 +74,8 @@ const BookDetail: React.FC<BookDetailProps> = ({
   // 生成星星数组，支持半星
   const renderStars = () => {
     const stars = [];
-    const fullStars = Math.floor(avgScore); // 完整星星数
-    const hasHalfStar = avgScore % 1 >= 0.5; // 是否有半星
+    const fullStars = Math.floor(avgScore);
+    const hasHalfStar = avgScore % 1 >= 0.5;
     
     // 完整星星
     for (let i = 0; i < fullStars; i++) {
@@ -112,12 +112,13 @@ const BookDetail: React.FC<BookDetailProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col md:flex-row gap-6 p-4 md:p-8 bg-white rounded-xl shadow-lg">
+    // 关键修改：添加与BookDetailTabs相同的padding
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex flex-col md:flex-row gap-8">
           {/* 左侧封面区域 */}
           <div className="md:w-1/4">
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center">
               <div className="relative w-64 h-96 shadow-lg rounded-md overflow-hidden">
                 <img 
                   src={book_cover} 
@@ -144,7 +145,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
           </div>
 
           {/* 右侧信息区域 */}
-          <div className="md:w-3/4 pl-8">
+          <div className="md:w-3/4">
             {/* 书名 */}
             <h1 className="text-3xl font-bold mb-2">{bookName}</h1>
             
@@ -281,4 +282,4 @@ const BookDetail: React.FC<BookDetailProps> = ({
   );
 };
 
-export default BookDetail;
+export default BookOverview;

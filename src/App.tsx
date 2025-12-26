@@ -6,31 +6,12 @@ import Footer from './component/Footer/Footer';
 import LoginPage from './pages/Login/LoginPage';
 import RegisterPage from './pages/Register/Register';
 import SearchResultPage from './pages/Seach/SearchResultPage';
-import BookDetail from './pages/BookDetail/component/BookDetail';
-
-// const App: React.FC = () => {
-//   return (
-//     <BrowserRouter>
-//       {/* 使用 flex 容器包裹整个应用 */}
-//       <div className="min-h-screen flex flex-col">
-//         <Header />
-        
-//         {/* 主要内容区域，使用 flex-grow 使其可以伸缩 */}
-//         <main className="grow">
-//           <div className="app-container">
-//             <Routes>
-//               <Route path="/" element={<HomePage />} />
-//               <Route path="/login" element={<LoginPage />} />
-//               <Route path="/register" element={<RegisterPage />} />
-//               <Route path="/search" element={<SearchResultPage />} />
-//             </Routes>
-//           </div>
-//         </main>
-//         <Footer />
-//       </div>
-//     </BrowserRouter>
-//   );
-// };
+import BookDetail from './pages/BookDetail/component/BookOverview';
+import BookDetailTabs from './pages/BookDetail/component/BookDetailTabs';
+import BookDetailPage from './pages/BookDetail/BookDetailPage';
+import CollectionsPage from './pages/Collections/CollectionsPage';
+import ShoppingCartPage from './pages/ShoppingCart/ShoppingCartPage';
+import CategoryPage from './pages/Category/CategoryPage';
 
 const App: React.FC = () => {
   return (
@@ -38,22 +19,53 @@ const App: React.FC = () => {
       {/* 使用 flex 容器包裹整个应用 */}
       <div className="min-h-screen flex flex-col">
         <Header />
+        
+        {/* 主要内容区域，使用 flex-grow 使其可以伸缩 */}
         <main className="grow">
-        <BookDetail
-          bookName='哈利波特与魔法石'
-          book_cover="https://p11-doubao-search-sign.byteimg.com/labis/96aac3768e1e729547d8011ea30c527c~tplv-be4g95zd3a-image.jpeg?rk3s=542c0f93&x-expires=1781588701&x-signature=wV4yoF%2Fbo2FKsrb1MXQx85HtDpg%3D"
-          author="J.K.罗琳"
-          publisher="人民文学出版社"
-          ISBN="9787020143736"
-          price={68.00}
-          discount_rate={0.66}
-          comment_count={2345}
-          total_score={2000 * 4 + 100 * 2 + 245 * 5} // 4.5 * 2345
-          stock={32}
-          publish_time="2018-10-01"
-          category="奇幻文学"
-        />
+          <div className="app-container">
+            <Routes>
+              {/* 首页 */}
+              <Route path="/" element={<HomePage />} />
+              
+              {/* 登录 */}
+              <Route path="/login" element={<LoginPage />} />
+              
+              {/* 注册 */}
+              <Route path="/register" element={<RegisterPage />} />
+              
+              {/* 搜索 */}
+              <Route path="/search" element={<SearchResultPage />} />
+              
+              {/* 图书详情 - 这里有多种可能的路径设计 */}
+              {/* 方案1：使用嵌套路由 */}
+              {/* <Route path="/book/:bookId" element={<BookDetailPage />}>
+                <Route index element={<BookDetail />} />
+                <Route path="details" element={<BookDetailTabs />} />
+              </Route> */}
+              
+              {/* 方案2：使用独立页面（更常见） */}
+              {/* <Route path="/book/:bookId" element={<BookDetailPage />} />
+              <Route path="/book/:bookId/details" element={<BookDetailTabs />} /> */}
+              
+              {/* 方案3：参数传递方式（推荐） */}
+              <Route path="/book/:bookId" element={<BookDetailPage />} />
+              
+              {/* 收藏 */}
+              <Route path="/collections" element={<CollectionsPage />} />
+              
+              {/* 购物车 */}
+              <Route path="/cart" element={<ShoppingCartPage />} />
+
+              <Route path="/category" element={<CategoryPage />} />
+              
+              {/* 404 页面 */}
+              <Route path="*" element={<div className="text-center py-20">404 - 页面不存在</div>} />
+
+              <Route path='/test' element={<BookDetailPage />} />
+            </Routes>
+          </div>
         </main>
+        
         <Footer />
       </div>
     </BrowserRouter>

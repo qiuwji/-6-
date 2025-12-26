@@ -241,7 +241,7 @@ const HomePage: React.FC = () => {
                 热门推荐
               </h2>
             </div>
-            <a 
+            {/* <a 
               href="/hot-books" 
               className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm md:text-base font-medium transition-colors duration-200 hover:underline"
             >
@@ -249,7 +249,7 @@ const HomePage: React.FC = () => {
               <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-            </a>
+            </a> */}
           </div>
           
           {/* 热门推荐图书列表 */}
@@ -268,7 +268,7 @@ const HomePage: React.FC = () => {
                 新书上架
               </h2>
             </div>
-            <a 
+            {/* <a 
               href="/new-books" 
               className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm md:text-base font-medium transition-colors duration-200 hover:underline"
             >
@@ -276,7 +276,7 @@ const HomePage: React.FC = () => {
               <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-            </a>
+            </a> */}
           </div>
           
           {/* 新书上架图书列表 */}

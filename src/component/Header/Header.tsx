@@ -86,7 +86,7 @@ const Header: React.FC = () => {
             {/* 桌面导航 */}
             <nav className="hidden md:flex items-center space-x-6">
               {!isLoginOrRegisterPage && (
-                <Link to="/favorites" className="text-neutral-600 hover:text-blue-500 flex gap-2">
+                <Link to="/collections" className="text-neutral-600 hover:text-blue-500 flex gap-2">
                   <i className="fa fa-heart-o" />
                   我的收藏
                 </Link>
@@ -174,7 +174,7 @@ const Header: React.FC = () => {
           {!isLoginOrRegisterPage && isMobileMenuOpen && (
             <div className="md:hidden bg-white shadow-md rounded-md mb-4">
               <nav className="flex flex-col gap-3 p-4">
-                <Link to="/favorites" className="flex gap-2">
+                <Link to="/collections" className="flex gap-2">
                   <i className="fa fa-heart-o" />
                   我的收藏
                 </Link>
