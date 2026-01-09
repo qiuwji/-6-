@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface AuthUser {
-  id: string; // 用户唯一ID
+  id: string | number; // 用户唯一ID
   username: string; // 用户名
-  avatarUrl: string;
-  email?: string | null; // 手机号
+  avatarUrl: string | null;
+  email?: string | null; // 邮箱
 }
 
 /** 认证 + 购物车状态类型 */

@@ -1,8 +1,10 @@
 import type { BookCardProps } from "@/component/BookCard/BookCard";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import TabBar from "./component/TabBar";
 import FilterBar from "./component/FilterBar";
 import BookList from "@/component/BookCard/BookList";
+import { searchBooks } from '@/services/bookService';
 
 /** ===== 分类数据 ===== */
 const categorys = ["文学小说", "奇幻", "儿童文学", "教育", "传记"];
@@ -18,79 +20,14 @@ const categoryItems: CategoryItem[] = categorys.map((c, index) => ({
   count: 5 - index,
 }));
 
-/** ===== Mock 图书数据 ===== */
-const mockBooks: BookCardProps[] = [
-  {
-    bookId: 1,
-    bookName: "哈利波特与魔法石",
-    author: "J.K.罗琳",
-    price: 45,
-    points: 4.5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074376.jpg",
-  },
-  {
-    bookId: 2,
-    bookName: "哈利波特与密室",
-    author: "J.K.罗琳",
-    price: 48,
-    points: 4.5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074377.jpg",
-  },
-  {
-    bookId: 3,
-    bookName: "哈利波特与阿兹卡班的囚徒",
-    author: "J.K.罗琳",
-    price: 52,
-    points: 5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074378.jpg",
-  },
-  {
-    bookId: 4,
-    bookName: "哈利波特与阿兹卡班的囚徒",
-    author: "J.K.罗琳",
-    price: 52,
-    points: 5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074378.jpg",
-  },
-  {
-    bookId: 5,
-    bookName: "哈利波特与阿兹卡班的囚徒",
-    author: "J.K.罗琳",
-    price: 52,
-    points: 5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074378.jpg",
-  },
-  {
-    bookId: 6,
-    bookName: "哈利波特与阿兹卡班的囚徒",
-    author: "J.K.罗琳",
-    price: 52,
-    points: 5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074378.jpg",
-  },
-  {
-    bookId: 7,
-    bookName: "哈利波特与阿兹卡班的囚徒",
-    author: "J.K.罗琳",
-    price: 52,
-    points: 5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074378.jpg",
-  },
-  {
-    bookId: 8,
-    bookName: "哈利波特与阿兹卡班的囚徒",
-    author: "J.K.罗琳",
-    price: 52,
-    points: 5,
-    imageUrl: "https://img3.doubanio.com/view/subject/l/public/s1074378.jpg",
-  },
-];
-
 /** ===== 每页显示数量（2 行 × 4 列） ===== */
 const PAGE_SIZE = 8;
 
 /** ================= 页面组件 ================= */
 const SearchResultPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const keyword = searchParams.get('keyword') || '';
+
   /** ===== TabBar 状态 ===== */
   const [selectedFilter, setSelectedFilter] = useState("全部");
   const [selectedSort, setSelectedSort] = useState("相关度");
@@ -100,16 +37,49 @@ const SearchResultPage: React.FC = () => {
   const [priceRange, setPriceRange] = useState<number[]>([0, 0]);
   const [star, setStar] = useState(0);
 
-  /** ===== 分页状态 ===== */
+  /** ===== 分页和数据状态 ===== */
   const [currentPage, setCurrentPage] = useState(1);
+  const [books, setBooks] = useState<BookCardProps[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [totalBooks, setTotalBooks] = useState(0);
 
-  /** ===== 真实总页数 ===== */
-  const totalPages = Math.ceil(mockBooks.length / PAGE_SIZE);
+  const totalPages = Math.ceil(totalBooks / PAGE_SIZE);
 
   /** ===== 当前页数据 ===== */
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const endIndex = startIndex + PAGE_SIZE;
-  const currentPageBooks = mockBooks.slice(startIndex, endIndex);
+  const currentPageBooks = books;
+
+  // 加载搜索结果
+  useEffect(() => {
+    if (!keyword.trim()) return;
+
+    const loadSearchResults = async () => {
+      try {
+        setLoading(true);
+        const response = await searchBooks(keyword, currentPage, PAGE_SIZE);
+        
+        if (response) {
+          setBooks(response.list.map(book => ({
+            bookId: book.bookId,
+            bookName: book.bookName,
+            imageUrl: book.imageUrl,
+            author: book.author,
+            price: 0,
+            discountPrice: book.discountPrice,
+            featureLabel: book.featureLabel,
+            points: book.points
+          })));
+          setTotalBooks(response.total);
+        }
+      } catch (error) {
+        console.error('搜索失败:', error);
+        setBooks([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSearchResults();
+  }, [keyword, currentPage]);
 
   /** ===== 应用筛选 ===== */
   const handleApplyFilter = (params: {

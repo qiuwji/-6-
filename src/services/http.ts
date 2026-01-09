@@ -35,7 +35,7 @@ interface ApiError extends Error {
 
 // 创建 axios 实例
 const http: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -301,3 +301,9 @@ export type { ApiResponse, ApiError, CustomRequestConfig };
 
 // 导出实例
 export default api;
+
+// 导出api对象供其他模块使用
+export { api };
+
+// 为了兼容 import { http } from 'xxx'，导出http实例
+export { http };

@@ -2,6 +2,8 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import 'font-awesome/css/font-awesome.min.css';
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from 'react-router-dom';
+import { register } from '@/services/userService';
+import { useAuthStore } from '@/store/useAuthStore';
 
 interface RegisterFormData {
   username: string;
@@ -21,7 +23,11 @@ function RegisterPage() {
     confirmPassword: ''
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const navigate = useNavigate();
+  const { setAuth } = useAuthStore();
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -29,19 +35,59 @@ function RegisterPage() {
       ...prev,
       [name]: value
     }));
+    setError(''); // 清除错误信息
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    // 验证密码是否匹配
-    if (formData.password !== formData.confirmPassword) {
-      alert("两次输入的密码不一致");
+    // 验证表单
+    if (!formData.username.trim() || !formData.email.trim() || !formData.password.trim()) {
+      setError('请填写所有必需字段');
       return;
     }
 
-    console.log('点击注册按钮', formData);
-    // 这里可以添加实际的注册API调用
+    // 验证密码是否匹配
+    if (formData.password !== formData.confirmPassword) {
+      setError('两次输入的密码不一致');
+      return;
+    }
+
+    // 验证密码长度
+    if (formData.password.length < 6) {
+      setError('密码长度至少为6位');
+      return;
+    }
+
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('请输入有效的邮箱地址');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await register({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password
+      });
+
+      if (response && response.data) {
+        // 注册成功，提示用户并跳转到登录页
+        alert('注册成功！请使用邮箱或用户名登录');
+        navigate('/login');
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || '注册失败，请稍后重试';
+      setError(errorMsg);
+      console.error('注册错误:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toLogin = () => {
@@ -77,6 +123,12 @@ function RegisterPage() {
             加入我们，开始您的购物之旅
           </p>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="mb-6">
             {/* 用户名 */}
             <div className="mb-4">
@@ -99,6 +151,7 @@ function RegisterPage() {
                   value={formData.username}
                   onChange={handleChange}
                   placeholder="请输入用户名"
+                  disabled={loading}
                   className="
                     w-full
                     pl-10 pr-3 py-2
@@ -106,6 +159,7 @@ function RegisterPage() {
                     rounded-md
                     focus:outline-none
                     focus:ring-2 focus:ring-blue-500
+                    disabled:bg-gray-100 disabled:cursor-not-allowed
                   "
                 />
               </div>
@@ -132,6 +186,7 @@ function RegisterPage() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="请输入邮箱"
+                  disabled={loading}
                   className="
                     w-full
                     pl-10 pr-3 py-2
@@ -139,6 +194,7 @@ function RegisterPage() {
                     rounded-md
                     focus:outline-none
                     focus:ring-2 focus:ring-blue-500
+                    disabled:bg-gray-100 disabled:cursor-not-allowed
                   "
                 />
               </div>
@@ -165,6 +221,7 @@ function RegisterPage() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="请输入密码"
+                  disabled={loading}
                   className="
                     w-full
                     pl-10 pr-3 py-2
@@ -172,6 +229,7 @@ function RegisterPage() {
                     rounded-md
                     focus:outline-none
                     focus:ring-2 focus:ring-blue-500
+                    disabled:bg-gray-100 disabled:cursor-not-allowed
                   "
                 />
               </div>
@@ -198,6 +256,7 @@ function RegisterPage() {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="请再次输入密码"
+                  disabled={loading}
                   className="
                     w-full
                     pl-10 pr-3 py-2
@@ -205,6 +264,7 @@ function RegisterPage() {
                     rounded-md
                     focus:outline-none
                     focus:ring-2 focus:ring-blue-500
+                    disabled:bg-gray-100 disabled:cursor-not-allowed
                   "
                 />
               </div>
@@ -212,6 +272,7 @@ function RegisterPage() {
 
             <button
               type="submit"
+              disabled={loading}
               className="
                 w-full
                 bg-blue-500
@@ -220,9 +281,10 @@ function RegisterPage() {
                 rounded-md
                 hover:bg-blue-600
                 transition-colors
+                disabled:bg-gray-400 disabled:cursor-not-allowed
               "
             >
-              注册
+              {loading ? '注册中...' : '注册'}
             </button>
           </form>
         </div>

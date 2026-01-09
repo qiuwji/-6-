@@ -2,6 +2,8 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import 'font-awesome/css/font-awesome.min.css';
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from 'react-router-dom';
+import { login } from '@/services/userService';
+import { useAuthStore } from '@/store/useAuthStore';
 
 interface LoginFormData {
   username: string;
@@ -17,7 +19,11 @@ function LoginPage() {
     password: ''
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const navigate = useNavigate();
+  const { setAuth } = useAuthStore();
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -25,11 +31,47 @@ function LoginPage() {
       ...prev,
       [name]: value
     }));
+    setError(''); // 清除错误信息
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log('点击登录按钮', formData);
+    
+    // 验证输入
+    if (!formData.username.trim() || !formData.password.trim()) {
+      setError('请输入用户名和密码');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await login({
+        account: formData.username,
+        password: formData.password
+      });
+
+      // 保存token和用户信息到store
+      if (response) {
+        const { token, user } = response;
+        setAuth(token, {
+          id: user.id,
+          username: user.username,
+          email: user.email || '',
+          avatarUrl: user.avatarUrl
+        });
+
+        // 登录成功，跳转到首页
+        navigate('/');
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || '登录失败，请检查用户名和密码';
+      setError(errorMsg);
+      console.error('登录错误:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toRegister = () => {
@@ -65,6 +107,12 @@ function LoginPage() {
             登录您的账户以继续购物
           </p>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="mb-6">
             {/* 用户名 */}
             <div className="mb-4">
@@ -87,6 +135,7 @@ function LoginPage() {
                   value={formData.username}
                   onChange={handleChange}
                   placeholder="请输入账号或邮箱"
+                  disabled={loading}
                   className="
                     w-full
                     pl-10 pr-3 py-2
@@ -94,6 +143,7 @@ function LoginPage() {
                     rounded-md
                     focus:outline-none
                     focus:ring-2 focus:ring-blue-500
+                    disabled:bg-gray-100 disabled:cursor-not-allowed
                   "
                 />
               </div>
@@ -120,6 +170,7 @@ function LoginPage() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="请输入密码"
+                  disabled={loading}
                   className="
                     w-full
                     pl-10 pr-3 py-2
@@ -127,6 +178,7 @@ function LoginPage() {
                     rounded-md
                     focus:outline-none
                     focus:ring-2 focus:ring-blue-500
+                    disabled:bg-gray-100 disabled:cursor-not-allowed
                   "
                 />
               </div>
@@ -134,6 +186,7 @@ function LoginPage() {
 
             <button
               type="submit"
+              disabled={loading}
               className="
                 w-full
                 bg-blue-500
@@ -142,9 +195,10 @@ function LoginPage() {
                 rounded-md
                 hover:bg-blue-600
                 transition-colors
+                disabled:bg-gray-400 disabled:cursor-not-allowed
               "
             >
-              登录
+              {loading ? '登录中...' : '登录'}
             </button>
           </form>
         </div>

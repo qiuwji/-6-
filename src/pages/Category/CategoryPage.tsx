@@ -1,33 +1,8 @@
 import BookList from '@/component/BookCard/BookList';
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-
-// 图书分类接口
-interface Category {
-  id: number;
-  name: string;
-  icon: string;
-  description?: string;
-  bookCount: number;
-}
-
-// 图书接口 - 适配 BookCardProps
-interface Book {
-  bookId: number;
-  bookName: string;
-  imageUrl: string;
-  author: string;
-  price: number;
-  discountPrice?: number;
-  points?: number; // 评分
-  featureLabel?: string;
-  categoryId: number;
-  isbn: string;
-  publishDate: string;
-  publisher: string;
-  description?: string;
-  stock: number;
-}
+import { useSearchParams } from 'react-router-dom';
+import { getBooksByCategory } from '@/services/bookService';
+import type { BookCardProps } from '@/component/BookCard/BookCard';
 
 const CategoryPage = () => {
   const [categories, setCategories] = useState<Category[]>([
@@ -103,191 +78,62 @@ const CategoryPage = () => {
     }
   ]);
 
-  const [books, setBooks] = useState<Book[]>([
-    {
-      bookId: 101,
-      bookName: "React设计模式与最佳实践",
-      author: "薛定谔的猫",
-      imageUrl: "https://picsum.photos/200/300?random=1",
-      price: 89.00,
-      discountPrice: 68.50,
-      points: 4.5,
-      featureLabel: "畅销",
-      categoryId: 1,
-      isbn: "9787115591207",
-      publishDate: "2023-05-01",
-      publisher: "机械工业出版社",
-      description: "深入讲解React开发中的设计模式和最佳实践",
-      stock: 10
-    },
-    {
-      bookId: 102,
-      bookName: "JavaScript高级程序设计（第4版）",
-      author: "尼古拉斯·泽卡斯",
-      imageUrl: "https://picsum.photos/200/300?random=2",
-      price: 149.00,
-      discountPrice: 119.00,
-      points: 4.8,
-      featureLabel: "热销",
-      categoryId: 1,
-      isbn: "9787115549655",
-      publishDate: "2022-08-15",
-      publisher: "人民邮电出版社",
-      description: "JavaScript经典著作的最新版本",
-      stock: 15
-    },
-    {
-      bookId: 103,
-      bookName: "Python编程：从入门到实践",
-      author: "埃里克·马瑟斯",
-      imageUrl: "https://picsum.photos/200/300?random=3",
-      price: 89.00,
-      points: 4.6,
-      featureLabel: "推荐",
-      categoryId: 2,
-      isbn: "9787115591208",
-      publishDate: "2023-02-10",
-      publisher: "人民邮电出版社",
-      description: "Python编程入门经典",
-      stock: 20
-    },
-    {
-      bookId: 104,
-      bookName: "算法导论",
-      author: "托马斯·科尔曼",
-      imageUrl: "https://picsum.photos/200/300?random=4",
-      price: 138.00,
-      points: 4.9,
-      featureLabel: "经典",
-      categoryId: 8,
-      isbn: "9787111407010",
-      publishDate: "2022-12-01",
-      publisher: "机械工业出版社",
-      description: "算法领域的经典教材",
-      stock: 8
-    },
-    {
-      bookId: 105,
-      bookName: "机器学习",
-      author: "周志华",
-      imageUrl: "https://picsum.photos/200/300?random=5",
-      price: 88.00,
-      discountPrice: 75.00,
-      points: 4.7,
-      featureLabel: "新品",
-      categoryId: 5,
-      isbn: "9787302423287",
-      publishDate: "2023-03-20",
-      publisher: "清华大学出版社",
-      description: "机器学习领域入门经典",
-      stock: 12
-    },
-    {
-      bookId: 106,
-      bookName: "Vue.js设计与实现",
-      author: "霍春阳",
-      imageUrl: "https://picsum.photos/200/300?random=6",
-      price: 99.00,
-      discountPrice: 79.00,
-      points: 4.8,
-      categoryId: 1,
-      isbn: "9787115580207",
-      publishDate: "2023-04-15",
-      publisher: "人民邮电出版社",
-      description: "深入解析Vue.js框架设计与实现原理",
-      stock: 18
-    },
-    {
-      bookId: 107,
-      bookName: "Node.js实战",
-      author: "Mike Cantelon",
-      imageUrl: "https://picsum.photos/200/300?random=7",
-      price: 75.00,
-      points: 4.4,
-      categoryId: 2,
-      isbn: "9787115591210",
-      publishDate: "2023-01-20",
-      publisher: "机械工业出版社",
-      description: "Node.js实战开发指南",
-      stock: 14
-    },
-    {
-      bookId: 108,
-      bookName: "Flutter开发实战详解",
-      author: "郭树煜",
-      imageUrl: "https://picsum.photos/200/300?random=8",
-      price: 85.00,
-      discountPrice: 68.00,
-      points: 4.6,
-      featureLabel: "热销",
-      categoryId: 3,
-      isbn: "9787115591211",
-      publishDate: "2023-06-10",
-      publisher: "电子工业出版社",
-      description: "Flutter移动开发实战指南",
-      stock: 16
-    }
-  ]);
-
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [books, setBooks] = useState<BookCardProps[]>([]);
   const [sortBy, setSortBy] = useState<'default' | 'price_asc' | 'price_desc' | 'rating' | 'date'>('default');
-  const [searchTerm, setSearchTerm] = useState('');
 
-  // 模拟数据加载
+  interface Category {
+    id: number;
+    name: string;
+    icon: string;
+    description?: string;
+    bookCount: number;
+  }
+
+  // 加载分类图书
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 500);
+    if (!selectedCategoryName) return;
 
-    return () => clearTimeout(timer);
-  }, []);
+    const loadBooks = async () => {
+      try {
+        setIsLoading(true);
+        const response = await getBooksByCategory(selectedCategoryName, 1, 20);
+        
+        if (response) {
+          setBooks(response.list.map(book => ({
+            bookId: book.bookId,
+            bookName: book.bookName,
+            imageUrl: book.imageUrl,
+            author: book.author,
+            price: 0,
+            discountPrice: book.discountPrice,
+            featureLabel: book.featureLabel,
+            points: book.points
+          })));
+        }
+      } catch (error) {
+        console.error('加载分类图书失败:', error);
+        setBooks([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  // 筛选和排序书籍
-  const filteredBooks = books
-    .filter(book => {
-      // 按分类筛选
-      if (selectedCategory && book.categoryId !== selectedCategory) {
-        return false;
-      }
-      
-      // 按搜索词筛选
-      if (searchTerm && !book.bookName.toLowerCase().includes(searchTerm.toLowerCase()) && 
-          !book.author.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-      
-      return true;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'price_asc':
-          const priceA = a.discountPrice || a.price;
-          const priceB = b.discountPrice || b.price;
-          return priceA - priceB;
-        case 'price_desc':
-          const priceADesc = a.discountPrice || a.price;
-          const priceBDesc = b.discountPrice || b.price;
-          return priceBDesc - priceADesc;
-        case 'rating':
-          return (b.points || 0) - (a.points || 0);
-        case 'date':
-          return new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime();
-        default:
-          return 0;
-      }
-    });
+    loadBooks();
+  }, [selectedCategoryName]);
 
   // 处理分类选择
   const handleCategorySelect = (categoryId: number) => {
-    setSelectedCategory(selectedCategory === categoryId ? null : categoryId);
-  };
-
-  // 清空筛选
-  const clearFilters = () => {
-    setSelectedCategory(null);
-    setSearchTerm('');
-    setSortBy('default');
+    const category = categories.find(c => c.id === categoryId);
+    if (selectedCategory === categoryId) {
+      setSelectedCategory(null);
+      setSelectedCategoryName(null);
+    } else {
+      setSelectedCategory(categoryId);
+      setSelectedCategoryName(category?.name || null);
+    }
   };
 
   // 获取当前分类名称
@@ -433,7 +279,7 @@ const CategoryPage = () => {
                   )}
                 </div>
                 <div className="mt-3">
-                  <p>找到 <span className="font-bold text-blue-500">{filteredBooks.length}</span> 本图书</p>
+                  <p>找到 <span className="font-bold text-blue-500">{books.length}</span> 本图书</p>
                 </div>
                 {(selectedCategory !== null || searchTerm || sortBy !== 'default') && (
                   <button
@@ -487,7 +333,7 @@ const CategoryPage = () => {
           <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-800 mb-2">
               {selectedCategory ? getSelectedCategoryName() : '全部图书'}
-              <span className="text-blue-500 ml-2">({filteredBooks.length})</span>
+              <span className="text-blue-500 ml-2">({books.length})</span>
             </h2>
             {selectedCategory && (
               <p className="text-gray-600">
@@ -497,9 +343,9 @@ const CategoryPage = () => {
           </div>
 
           {/* 书籍列表 - 使用BookList组件 */}
-          {filteredBooks.length > 0 ? (
+          {books.length > 0 ? (
             <>
-              <BookList books={bookCardProps} />
+              <BookList books={books} />
               
               {/* 分页 */}
               <div className="mt-8 flex justify-center">

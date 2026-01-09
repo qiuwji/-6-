@@ -1,90 +1,63 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getCart, updateCartItem, removeFromCart, getCartTotal } from '@/services/cartService';
+import { createOrder } from '@/services/orderService';
+import { useIsLogin } from '@/store/useAuthStore';
 
-// 定义购物车商品接口
 interface CartItem {
   id: number;
   bookId: number;
-  title: string;
+  bookName: string;
+  imageUrl: string;
   author: string;
-  coverImage: string;
   price: number;
-  originalPrice?: number; // 原价（用于显示折扣）
+  discountPrice: number;
   quantity: number;
-  stock: number; // 库存
+  count: number;
   selected: boolean;
-  isbn: string;
 }
 
 const ShoppingCartPage = () => {
   const navigate = useNavigate();
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    {
-      id: 1,
-      bookId: 101,
-      title: "《React设计模式与最佳实践》",
-      author: "薛定谔的猫",
-      coverImage: "https://picsum.photos/120/180?random=1",
-      price: 68.50,
-      originalPrice: 89.00,
-      quantity: 1,
-      stock: 10,
-      selected: true,
-      isbn: "9787115591207"
-    },
-    {
-      id: 2,
-      bookId: 102,
-      title: "《Tailwind CSS实战指南》",
-      author: "前端小能手",
-      coverImage: "https://picsum.photos/120/180?random=2",
-      price: 49.90,
-      quantity: 2,
-      stock: 15,
-      selected: true,
-      isbn: "9787121445678"
-    },
-    {
-      id: 3,
-      bookId: 103,
-      title: "《JavaScript高级程序设计（第4版）》",
-      author: "尼古拉斯·泽卡斯",
-      coverImage: "https://picsum.photos/120/180?random=3",
-      price: 119.00,
-      originalPrice: 149.00,
-      quantity: 1,
-      stock: 5,
-      selected: false,
-      isbn: "9787115549655"
-    },
-    {
-      id: 4,
-      bookId: 104,
-      title: "《TypeScript全面指南》",
-      author: "TypeScript社区",
-      coverImage: "https://picsum.photos/120/180?random=4",
-      price: 78.00,
-      quantity: 1,
-      stock: 8,
-      selected: true,
-      isbn: "9787121345679"
-    }
-  ]);
-
+  const isLogin = useIsLogin();
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSelectAll, setIsSelectAll] = useState(false);
 
-  // 模拟数据加载
+  // 加载购物车数据
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      // 计算是否全选
-      const allSelected = cartItems.length > 0 && cartItems.every(item => item.selected);
-      setIsSelectAll(allSelected);
-    }, 500);
+    const loadCart = async () => {
+      try {
+        if (!isLogin) {
+          navigate('/login');
+          return;
+        }
 
-    return () => clearTimeout(timer);
-  }, []);
+        setIsLoading(true);
+        const cartData = await getCart();
+        if (cartData) {
+          setCartItems(cartData.list.map(item => ({
+            id: item.id,
+            bookId: item.bookId,
+            bookName: item.bookName,
+            imageUrl: item.imageUrl,
+            author: item.author,
+            price: item.price,
+            discountPrice: item.discountPrice,
+            quantity: item.count,
+            count: item.count,
+            selected: item.selected
+          })));
+        }
+      } catch (error) {
+        console.error('加载购物车失败:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCart();
+  }, [isLogin, navigate]);
 
   // 更新全选状态
   useEffect(() => {
@@ -105,66 +78,116 @@ const ShoppingCartPage = () => {
   const selectedCount = cartItems.filter(item => item.selected).length;
 
   // 单个商品选择切换
-  const toggleItemSelection = (id: number) => {
-    setCartItems(prev => prev.map(item => 
-      item.id === id ? { ...item, selected: !item.selected } : item
-    ));
+  const toggleItemSelection = async (id: number) => {
+    const item = cartItems.find(i => i.id === id);
+    if (!item) return;
+
+    try {
+      const success = await updateCartItem(id, item.count, !item.selected);
+      if (success) {
+        setCartItems(prev => prev.map(i => 
+          i.id === id ? { ...i, selected: !i.selected } : i
+        ));
+      }
+    } catch (error) {
+      console.error('更新购物车失败:', error);
+    }
   };
 
   // 全选/全不选
-  const toggleSelectAll = () => {
+  const toggleSelectAll = async () => {
     const newSelectAll = !isSelectAll;
     setIsSelectAll(newSelectAll);
-    setCartItems(prev => prev.map(item => ({ ...item, selected: newSelectAll })));
+    
+    try {
+      const promises = cartItems.map(item =>
+        updateCartItem(item.id, item.count, newSelectAll)
+      );
+      await Promise.all(promises);
+      setCartItems(prev => prev.map(item => ({ ...item, selected: newSelectAll })));
+    } catch (error) {
+      console.error('批量更新购物车失败:', error);
+    }
   };
 
   // 修改商品数量
-  const updateQuantity = (id: number, newQuantity: number) => {
+  const updateQuantity = async (id: number, newQuantity: number) => {
     if (newQuantity < 1) return;
     
-    setCartItems(prev => prev.map(item => {
-      if (item.id === id) {
-        // 不能超过库存
-        const finalQuantity = Math.min(newQuantity, item.stock);
-        return { ...item, quantity: finalQuantity };
+    try {
+      const item = cartItems.find(i => i.id === id);
+      if (!item) return;
+
+      const success = await updateCartItem(id, newQuantity, item.selected);
+      if (success) {
+        setCartItems(prev => prev.map(i => {
+          if (i.id === id) {
+            return { ...i, quantity: newQuantity, count: newQuantity };
+          }
+          return i;
+        }));
       }
-      return item;
-    }));
+    } catch (error) {
+      console.error('更新商品数量失败:', error);
+    }
   };
 
   // 删除商品
-  const removeItem = (id: number) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+  const removeItem = async (id: number) => {
+    try {
+      const success = await removeFromCart(id);
+      if (success) {
+        setCartItems(prev => prev.filter(item => item.id !== id));
+      }
+    } catch (error) {
+      console.error('删除商品失败:', error);
+    }
   };
 
   // 批量删除选中的商品
-  const removeSelectedItems = () => {
-    const selectedIds = cartItems.filter(item => item.selected).map(item => item.id);
-    if (selectedIds.length === 0) {
+  const removeSelectedItems = async () => {
+    const selectedItems = cartItems.filter(item => item.selected);
+    if (selectedItems.length === 0) {
       alert('请先选择要删除的商品');
       return;
     }
     
-    if (window.confirm(`确定要删除选中的 ${selectedIds.length} 件商品吗？`)) {
-      setCartItems(prev => prev.filter(item => !item.selected));
+    if (window.confirm(`确定要删除选中的 ${selectedItems.length} 件商品吗？`)) {
+      try {
+        const promises = selectedItems.map(item => removeFromCart(item.id));
+        await Promise.all(promises);
+        setCartItems(prev => prev.filter(item => !item.selected));
+      } catch (error) {
+        console.error('批量删除商品失败:', error);
+      }
     }
   };
 
   // 去结算
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     const selectedItems = cartItems.filter(item => item.selected);
     if (selectedItems.length === 0) {
       alert('请先选择要结算的商品');
       return;
     }
-    
-    // 在实际应用中，这里会将选中的商品信息传递到结算页面
-    navigate('/checkout', { 
-      state: { 
-        items: selectedItems,
-        ...calculateTotal()
+
+    try {
+      // 调用下单API
+      const orderItems = selectedItems.map(item => ({
+        book_id: item.bookId,
+        count: item.quantity
+      }));
+
+      const result = await createOrder(orderItems);
+      if (result) {
+        alert('下单成功，请前往订单页面查看');
+        // 清空购物车中已下单的商品
+        setCartItems(prev => prev.filter(item => !item.selected));
       }
-    });
+    } catch (error) {
+      console.error('下单失败:', error);
+      alert('下单失败，请重试');
+    }
   };
 
   // 继续购物
@@ -244,8 +267,8 @@ const ShoppingCartPage = () => {
 
                       {/* 图书封面 */}
                       <img 
-                        src={item.coverImage} 
-                        alt={item.title}
+                        src={item.imageUrl} 
+                        alt={item.bookName}
                         className="w-24 h-32 object-cover rounded shadow"
                         onError={(e) => {
                           e.currentTarget.src = 'https://via.placeholder.com/120x160?text=Book+Cover';
@@ -257,36 +280,30 @@ const ShoppingCartPage = () => {
                         <div className="flex flex-col md:flex-row md:items-start justify-between">
                           <div>
                             <h3 className="text-lg font-semibold text-gray-800 hover:text-blue-600">
-                              <Link to={`/book/${item.bookId}`}>{item.title}</Link>
+                              <Link to={`/book/${item.bookId}`}>{item.bookName}</Link>
                             </h3>
                             <p className="text-gray-500 mt-1">
                               <i className="fa fa-user-pen mr-2 text-sm"></i>
                               {item.author}
-                            </p>
-                            <p className="text-gray-400 text-sm mt-1">
-                              ISBN: {item.isbn}
-                            </p>
-                            <p className="text-gray-400 text-sm mt-1">
-                              库存: {item.stock} 件
                             </p>
                           </div>
 
                           {/* 价格区域 */}
                           <div className="mt-3 md:mt-0">
                             <div className="flex items-center">
-                              {item.originalPrice && (
+                              {item.price > item.discountPrice && (
                                 <span className="text-gray-400 line-through mr-2">
                                   ¥{item.originalPrice.toFixed(2)}
                                 </span>
                               )}
                               <span className="text-xl font-bold text-red-500">
-                                ¥{item.price.toFixed(2)}
+                                ¥{item.discountPrice.toFixed(2)}
                               </span>
                             </div>
-                            {item.originalPrice && (
+                            {item.price > item.discountPrice && (
                               <div className="mt-1">
                                 <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded">
-                                  省¥{(item.originalPrice - item.price).toFixed(2)}
+                                  省¥{(item.price - item.discountPrice).toFixed(2)}
                                 </span>
                               </div>
                             )}
@@ -310,12 +327,10 @@ const ShoppingCartPage = () => {
                               onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                               className="w-12 h-8 text-center border-t border-b border-gray-300"
                               min="1"
-                              max={item.stock}
                             />
                             <button
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-r-md hover:bg-gray-100"
-                              disabled={item.quantity >= item.stock}
                             >
                               <i className="fa fa-plus text-sm"></i>
                             </button>
@@ -326,7 +341,7 @@ const ShoppingCartPage = () => {
 
                           {/* 小计 */}
                           <div className="text-lg font-bold text-red-500 mb-3 md:mb-0">
-                            ¥{(item.price * item.quantity).toFixed(2)}
+                            ¥{(item.discountPrice * item.quantity).toFixed(2)}
                           </div>
 
                           {/* 操作按钮 */}
