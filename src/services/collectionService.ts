@@ -1,5 +1,7 @@
 import { api } from './http';
 
+const isSuccessCode = (code: any) => code === 0 || code === 200;
+
 /**
  * 收藏记录项
  */
@@ -7,25 +9,40 @@ export interface CollectionItem {
   id: number;
   bookId: number;
   bookName: string;
-  imageUrl: string;
   author: string;
-  price: number;
-  discountPrice: number;
+  imageUrl?: string;
+  bookPrice?: number;
   collectTime: string;
 }
 
 /**
  * 收藏列表响应
  */
-export interface CollectionsListResponse {
+// API 原始返回类型（snake_case）
+interface CollectionsApiResponse {
   code: number;
   msg: string;
   data: {
     page: number;
     size: number;
     total: number;
-    list: CollectionItem[];
+    list: Array<{
+      id: number;
+      book_id: number;
+      book_title: string;
+      book_author: string;
+      book_cover?: string;
+      book_price?: number;
+      collect_time: string;
+    }>;
   };
+}
+
+export interface CollectionsListResponse {
+  page: number;
+  size: number;
+  total: number;
+  list: CollectionItem[];
 }
 
 /**
@@ -40,9 +57,10 @@ export const getCollections = async (
   size = 20,
   sortBy = 'collect_time',
   order = 'desc'
-): Promise<CollectionsListResponse['data'] | null> => {
+): Promise<CollectionsListResponse | null> => {
   try {
-    const response = await api.get<CollectionsListResponse>('/users/me/collections', {
+    // 注意：后端文档中路径为 /user/me/collections
+    const response = await api.get<CollectionsApiResponse>('/user/me/collections', {
       params: {
         page,
         size,
@@ -51,8 +69,22 @@ export const getCollections = async (
       }
     });
 
-    if (response.code === 0 && response.data) {
-      return response.data;
+    if (isSuccessCode(response.code) && response.data) {
+      const mapped: CollectionsListResponse = {
+        page: response.data.page,
+        size: response.data.size,
+        total: response.data.total,
+        list: response.data.list.map(it => ({
+          id: it.id,
+          bookId: it.book_id,
+          bookName: it.book_title,
+          author: it.book_author,
+          imageUrl: it.book_cover,
+          bookPrice: it.book_price,
+          collectTime: it.collect_time
+        }))
+      };
+      return mapped;
     }
     return null;
   } catch (error) {
@@ -65,17 +97,21 @@ export const getCollections = async (
  * 添加收藏
  * @param bookId 书籍ID
  */
-export const addCollection = async (bookId: number): Promise<boolean> => {
+export const addCollection = async (bookId: number): Promise<{ collectionId?: number; bookId?: number; collectTime?: string } | null> => {
   try {
-    const response = await api.post<{ code: number; msg: string; data: object }>(
-      '/users/me/collections',
-      { book_id: bookId }
-    );
+    // 新接口：POST /user/me/collections/{book_id}
+    const response = await api.post<any>(`/user/me/collections/${bookId}`, {});
 
-    if (response.code === 0) {
-      return true;
+    if (isSuccessCode(response.code)) {
+      // 期望返回 { collection_id, book_id, collect_time }
+      const d = response.data || {};
+      return {
+        collectionId: d.collection_id ?? d.collectionId,
+        bookId: d.book_id ?? d.bookId,
+        collectTime: d.collect_time ?? d.collectTime
+      };
     }
-    return false;
+    return null;
   } catch (error) {
     console.error('添加收藏失败:', error);
     throw error;
@@ -88,14 +124,9 @@ export const addCollection = async (bookId: number): Promise<boolean> => {
  */
 export const removeCollection = async (bookId: number): Promise<boolean> => {
   try {
-    const response = await api.delete<{ code: number; msg: string; data: object }>(
-      `/users/me/collections/${bookId}`
-    );
+    const response = await api.delete<any>(`/user/me/collections/${bookId}`);
 
-    if (response.code === 0) {
-      return true;
-    }
-    return false;
+    return isSuccessCode(response.code);
   } catch (error) {
     console.error('取消收藏失败:', error);
     throw error;

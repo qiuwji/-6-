@@ -1,6 +1,6 @@
 import BookList from '@/component/BookCard/BookList';
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { getBooksByCategory } from '@/services/bookService';
 import type { BookCardProps } from '@/component/BookCard/BookCard';
 
@@ -82,7 +82,9 @@ const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [books, setBooks] = useState<BookCardProps[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'default' | 'price_asc' | 'price_desc' | 'rating' | 'date'>('default');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   interface Category {
     id: number;
@@ -99,6 +101,7 @@ const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
     const loadBooks = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         const response = await getBooksByCategory(selectedCategoryName, 1, 20);
         
         if (response) {
@@ -115,6 +118,7 @@ const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
         }
       } catch (error) {
         console.error('加载分类图书失败:', error);
+        setError('加载图书失败，请检查后端是否启动');
         setBooks([]);
       } finally {
         setIsLoading(false);
@@ -153,7 +157,53 @@ const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
     );
   }
 
+  // 错误状态
+  if (error && selectedCategoryName) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-center items-center h-64">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-8 max-w-md text-center">
+            <i className="fa fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+            <h3 className="text-xl font-semibold text-red-700 mb-2">加载失败</h3>
+            <p className="text-red-600 mb-4">{error}</p>
+            <p className="text-sm text-gray-600 mb-4">
+              请确保后端服务运行在 <code className="bg-gray-200 px-2 py-1 rounded">http://localhost:8080</code>
+            </p>
+            <button
+              onClick={() => {
+                setError(null);
+                setSelectedCategoryName(null);
+                setSelectedCategory(null);
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+            >
+              返回
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // 将Book转换为BookCardProps
+  // 计算过滤后的书籍列表
+  const filteredBooks = books.filter(b => {
+    // 按分类过滤（如果书中包含 categoryId 则严格匹配，否则不过滤）
+    if (selectedCategory !== null) {
+      const cId = (b as any).categoryId;
+      if (typeof cId !== 'undefined' && cId !== selectedCategory) return false;
+    }
+
+    // 按搜索词过滤
+    if (searchTerm && searchTerm.trim() !== '') {
+      const keyword = searchTerm.trim().toLowerCase();
+      const text = `${b.bookName} ${b.author}`.toLowerCase();
+      if (!text.includes(keyword)) return false;
+    }
+
+    return true;
+  });
+
   const bookCardProps = filteredBooks.map(book => ({
     bookId: book.bookId,
     bookName: book.bookName,
@@ -164,6 +214,13 @@ const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
     points: book.points,
     featureLabel: book.featureLabel
   }));
+
+  const clearFilters = () => {
+    setSelectedCategory(null);
+    setSelectedCategoryName(null);
+    setSearchTerm('');
+    setSortBy('default');
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">

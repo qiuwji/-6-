@@ -4,7 +4,7 @@ import api from './http';
 
 export interface RegisterRequest {
   username: string;
-  email: string;
+  account: string;
   password: string;
 }
 

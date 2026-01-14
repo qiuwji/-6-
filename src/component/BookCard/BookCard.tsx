@@ -41,7 +41,26 @@ const BookCard: React.FC<BookCardProps> = ({
       return;
     }
 
-    navigate("/test");
+    if (onCardClick) {
+      onCardClick(bookId);
+      return;
+    }
+
+    // 通过路由 state 传递当前卡片的基础信息，详情页可以优先使用这些数据快速渲染
+    navigate(`/book/${bookId}`, {
+      state: {
+        book: {
+          bookId,
+          bookName,
+          imageUrl,
+          author,
+          price,
+          discountPrice,
+          featureLabel,
+          points,
+        }
+      }
+    });
   };
 
   // 处理加入购物车按钮点击

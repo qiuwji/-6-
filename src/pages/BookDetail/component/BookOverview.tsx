@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from 'react';
+import { addCollection, removeCollection, isCollected } from '@/services/collectionService';
 
 interface BookOverviewProps {
   bookName: string;
@@ -16,6 +17,7 @@ interface BookOverviewProps {
   publish_time: string;
   category: string;
   isFavorited?: boolean;
+  bookId?: number;
 }
 
 const BookOverview: React.FC<BookOverviewProps> = ({
@@ -32,10 +34,12 @@ const BookOverview: React.FC<BookOverviewProps> = ({
   publish_time,
   category,
   isFavorited: initialIsFavorited = false,
+  bookId,
 }) => {
   const [isFavorited, setIsFavorited] = useState(initialIsFavorited);
   const [quantity, setQuantity] = useState(1);
   const [selectedCity, setSelectedCity] = useState("广州市");
+  const [favLoading, setFavLoading] = useState(false);
 
   // 计算当前价格
   const currentPrice = discount_rate ? price * discount_rate : price;
@@ -47,9 +51,45 @@ const BookOverview: React.FC<BookOverviewProps> = ({
   // 计算平均评分
   const avgScore = comment_count > 0 ? total_score / comment_count : 0;
 
-  const handleFavoriteClick = () => {
-    setIsFavorited(!isFavorited);
+  const handleFavoriteClick = async () => {
+    if (!bookId) {
+      setIsFavorited(!isFavorited);
+      return;
+    }
+
+    if (favLoading) return;
+    setFavLoading(true);
+    try {
+      if (isFavorited) {
+        // 取消收藏
+        const ok = await removeCollection(bookId);
+        if (ok) setIsFavorited(false);
+      } else {
+        const res = await addCollection(bookId);
+        if (res) setIsFavorited(true);
+      }
+    } catch (err) {
+      console.error('切换收藏失败:', err);
+    } finally {
+      setFavLoading(false);
+    }
   };
+
+  useEffect(() => {
+    // 初始查询收藏状态（若未通过 props 提供）
+    let mounted = true;
+    const check = async () => {
+      if (!bookId) return;
+      try {
+        const collected = await isCollected(bookId);
+        if (mounted) setIsFavorited(collected);
+      } catch (err) {
+        // ignore
+      }
+    };
+    check();
+    return () => { mounted = false; };
+  }, [bookId]);
 
   const handleDecreaseQuantity = () => {
     if (quantity > 1) {

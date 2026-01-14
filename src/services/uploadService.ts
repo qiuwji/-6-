@@ -5,18 +5,21 @@ import { api } from './http';
  */
 export interface UploadData {
   url: string;
-  filename: string;
-  originalName: string;
-  size: string;
+  file_name: string;
+  file_size: number;
 }
 
 /**
  * 上传响应
  */
 export interface UploadResponse {
-  code: number;
+  code: number | string;
   msg: string;
-  data: UploadData;
+  data: {
+    url: string;
+    file_name: string;
+    size: number | string;
+  };
 }
 
 /**
@@ -33,18 +36,17 @@ export const uploadImage = async (
     formData.append('file', file);
     formData.append('type', type);
 
-    const response = await api.post<UploadResponse>(
-      '/upload/image',
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      }
-    );
+    // 使用 api.upload 以确保 multipart/form-data 正确设置，并由拦截器添加 Authorization
+    const response = await api.upload<UploadResponse>('/upload/image', formData);
 
-    if (response.code === 0 && response.data) {
-      return response.data;
+    if ((response.code === 0 || response.code === 200 || response.code === '200' || response.code === '0') && response.data) {
+      const d = response.data;
+      const mapped: UploadData = {
+        url: d.url,
+        file_name: d.file_name,
+        file_size: typeof d.size === 'string' ? parseInt(d.size, 10) || 0 : d.size || 0
+      };
+      return mapped;
     }
     return null;
   } catch (error) {

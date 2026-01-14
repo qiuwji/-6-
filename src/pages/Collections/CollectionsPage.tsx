@@ -1,69 +1,75 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getCollections, removeCollection } from '@/services/collectionService';
 
-// 定义收藏项接口
+// 定义收藏项接口（与后端返回字段映射）
 interface CollectionItem {
-  id: number;
+  id: number; // collection id
+  bookId: number;
   title: string;
   author: string;
-  isbn: string;
   coverImage: string;
   collectTime: string;
 }
 
 const CollectionsPage = () => {
-  const [collections, setCollections] = useState<CollectionItem[]>([
-    {
-      id: 1,
-      title: "《React设计模式与最佳实践》",
-      author: "薛定谔的猫",
-      isbn: "9787115591207",
-      coverImage: "https://picsum.photos/120/180?random=1",
-      collectTime: "2025-10-01 14:30:00"
-    },
-    {
-      id: 2,
-      title: "《Tailwind CSS实战指南》",
-      author: "前端小能手",
-      isbn: "9787121445678",
-      coverImage: "https://picsum.photos/120/180?random=2",
-      collectTime: "2025-10-05 09:15:00"
-    },
-    {
-      id: 3,
-      title: "《JavaScript高级程序设计（第4版）》",
-      author: "尼古拉斯·泽卡斯",
-      isbn: "9787115549655",
-      coverImage: "https://picsum.photos/120/180?random=3",
-      collectTime: "2025-10-10 16:40:00"
-    }
-  ]);
-
+  const [collections, setCollections] = useState<CollectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 模拟数据加载
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const load = async () => {
+    setIsLoading(true);
+    try {
+      const res = await getCollections(1, 100);
+      if (res) {
+        const mapped = res.list.map(item => ({
+          id: item.id,
+          bookId: item.bookId,
+          title: item.bookName,
+          author: item.author,
+          coverImage: item.imageUrl ?? '',
+          collectTime: item.collectTime
+        }));
+        setCollections(mapped);
+      } else {
+        setCollections([]);
+      }
+    } catch (err) {
+      console.error('加载收藏失败:', err);
+      setCollections([]);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
+  };
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    load();
   }, []);
 
   // 取消收藏
-  const handleCancelCollection = (id: number) => {
-    // 在实际应用中，这里应该调用API接口取消收藏
-    setCollections(prev => prev.filter(item => item.id !== id));
-    
-    // 可以添加确认对话框
-    // if (window.confirm('确定要取消收藏吗？')) {
-    //   setCollections(prev => prev.filter(item => item.id !== id));
-    // }
+  const handleCancelCollection = async (bookId: number) => {
+    if (!window.confirm('确定要取消收藏这本书吗？')) return;
+    try {
+      const ok = await removeCollection(bookId);
+      if (ok) {
+        setCollections(prev => prev.filter(item => item.bookId !== bookId));
+      }
+    } catch (err) {
+      console.error('取消收藏失败:', err);
+      alert('取消收藏失败');
+    }
   };
 
   // 批量取消收藏（如果有批量操作需求）
-  const handleBatchCancel = (ids: number[]) => {
-    setCollections(prev => prev.filter(item => !ids.includes(item.id)));
+  const handleBatchCancel = async (ids: number[]) => {
+    if (!window.confirm('确定要清空全部收藏吗？')) return;
+    try {
+      // 逐个删除
+      await Promise.all(ids.map(id => removeCollection(id)));
+      setCollections([]);
+    } catch (err) {
+      console.error('清空收藏失败:', err);
+      alert('清空收藏失败');
+    }
   };
 
   // 加载状态
@@ -100,7 +106,7 @@ const CollectionsPage = () => {
           <div className="collection-list space-y-4">
             {collections.map((item) => (
               <div 
-                key={item.id} 
+                key={item.bookId} 
                 className="bg-white rounded-lg shadow-sm p-4 md:p-6 flex flex-col md:flex-row items-center gap-4 md:gap-6 hover:shadow-md transition-shadow"
               >
                 {/* 图书封面 */}
@@ -117,15 +123,11 @@ const CollectionsPage = () => {
                 {/* 图书信息 */}
                 <div className="flex-1 text-left">
                   <h3 className="text-lg md:text-xl font-semibold text-gray-800 hover:text-blue-600 cursor-pointer">
-                    <Link to={`/book/${item.id}`}>{item.title}</Link>
+                    <Link to={`/book/${item.bookId}`}>{item.title}</Link>
                   </h3>
                   <p className="text-gray-500 mt-1">
                     <i className="fa fa-user-pen mr-2 text-sm"></i>
                     作者：{item.author}
-                  </p>
-                  <p className="text-gray-500 mt-1">
-                    <i className="fa fa-barcode mr-2 text-sm"></i>
-                    ISBN：{item.isbn}
                   </p>
                   <p className="text-gray-400 mt-1 text-sm">
                     <i className="fa fa-clock mr-2"></i>
@@ -137,7 +139,7 @@ const CollectionsPage = () => {
                 <div className="flex flex-col md:flex-row gap-3">
                   {/* 查看详情按钮 */}
                   <Link 
-                    to={`/book/${item.id}`}
+                    to={`/book/${item.bookId}`}
                     className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors flex items-center justify-center"
                   >
                     <i className="fa fa-eye mr-2"></i>查看详情
@@ -145,7 +147,7 @@ const CollectionsPage = () => {
                   
                   {/* 取消收藏按钮 */}
                   <button 
-                    onClick={() => handleCancelCollection(item.id)}
+                    onClick={() => handleCancelCollection(item.bookId)}
                     className="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-md transition-colors flex items-center justify-center"
                   >
                     <i className="fa fa-heart-crack mr-2"></i>取消收藏
@@ -179,7 +181,7 @@ const CollectionsPage = () => {
               </div>
               <button 
                 onClick={() => {
-                  const ids = collections.map(item => item.id);
+                  const ids = collections.map(item => item.bookId);
                   if (window.confirm(`确定要清空全部 ${collections.length} 本收藏图书吗？`)) {
                     handleBatchCancel(ids);
                   }

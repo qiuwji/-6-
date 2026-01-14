@@ -1,31 +1,70 @@
 import { api } from './http';
 
+const isSuccessCode = (code: any) => code === 0 || code === 200;
+
 /**
- * 购物车条目
+ * 购物车条目（前端友好）
  */
 export interface CartItem {
   id: number;
   bookId: number;
   bookName: string;
-  imageUrl: string;
-  author: string;
-  price: number;
+  imageUrl?: string;
+  author?: string;
+  price?: number; // unit_price
+  discountPrice?: number;
+  quantity: number; // 和count一致
   count: number;
-  selected: boolean;
-  discountPrice: number;
+  subtotal?: number;
+  selected?: boolean;
+  addTime?: string;
+  stock?: number;
+  maxPurchase?: number;
 }
 
 /**
- * 购物车响应
+ * 购物车响应（API原始）
  */
-export interface CartResponse {
+interface CartApiResponse {
   code: number;
   msg: string;
   data: {
     page: number;
     size: number;
     total: number;
-    list: CartItem[];
+    list: Array<{
+      id?: number;
+      book_id?: number;
+      book_title?: string;
+      book_author?: string;
+      book_cover?: string;
+      unit_price?: number;
+      count?: number;
+      subtotal?: number;
+      selected?: boolean;
+      add_time?: string;
+      stock?: number;
+      max_purchase?: number;
+    }>;
+    summary?: {
+      total_items: number;
+      selected_items: number;
+      total_price: number;
+      selected_price: number;
+    };
+  };
+}
+
+export interface CartResponse {
+  page: number;
+  size: number;
+  total: number;
+  list: CartItem[];
+  summary?: {
+    totalItems: number;
+    selectedItems: number;
+    totalPrice: number;
+    selectedPrice: number;
   };
 }
 
@@ -33,16 +72,45 @@ export interface CartResponse {
  * 查看购物车
  * @param onlySelected 是否只显示选中的商品，默认false
  */
-export const getCart = async (onlySelected = false): Promise<CartResponse['data'] | null> => {
+export const getCart = async (onlySelected = false): Promise<CartResponse | null> => {
   try {
-    const response = await api.get<CartResponse>('/cart', {
+    const response = await api.get<CartApiResponse>('/cart', {
       params: {
         only_selected: onlySelected
       }
     });
 
-    if (response.code === 0 && response.data) {
-      return response.data;
+    if (isSuccessCode(response.code) && response.data) {
+      const data = response.data;
+      const mapped: CartResponse = {
+        page: data.page,
+        size: data.size,
+        total: data.total,
+        list: data.list.map(it => ({
+          id: it.id ?? 0,
+          bookId: it.book_id ?? 0,
+          bookName: it.book_title ?? '',
+          author: it.book_author,
+          imageUrl: it.book_cover,
+          price: it.unit_price,
+          quantity: it.count ?? 0,
+          count: it.count ?? 0,
+          subtotal: it.subtotal,
+          selected: it.selected,
+          addTime: it.add_time,
+          stock: it.stock,
+          maxPurchase: it.max_purchase
+        })),
+        summary: data.summary
+          ? {
+              totalItems: data.summary.total_items,
+              selectedItems: data.summary.selected_items,
+              totalPrice: data.summary.total_price,
+              selectedPrice: data.summary.selected_price
+            }
+          : undefined
+      };
+      return mapped;
     }
     return null;
   } catch (error) {
@@ -58,15 +126,9 @@ export const getCart = async (onlySelected = false): Promise<CartResponse['data'
  */
 export const addToCart = async (bookId: number, count = 1): Promise<boolean> => {
   try {
-    const response = await api.post<{ code: number; msg: string; data: object }>(
-      '/cart',
-      { book_id: bookId, count }
-    );
-
-    if (response.code === 0) {
-      return true;
-    }
-    return false;
+    // 新接口：POST /cart/{book_id}，body 包含 count
+    const response = await api.post<any>(`/cart/${bookId}`, { count });
+    return isSuccessCode(response.code);
   } catch (error) {
     console.error('加入购物车失败:', error);
     throw error;
@@ -85,15 +147,8 @@ export const updateCartItem = async (
   selected = true
 ): Promise<boolean> => {
   try {
-    const response = await api.put<{ code: number; msg: string; data: object }>(
-      `/cart/${cartItemId}`,
-      { count, selected }
-    );
-
-    if (response.code === 0) {
-      return true;
-    }
-    return false;
+    const response = await api.put<any>(`/cart/${cartItemId}`, { count, selected });
+    return isSuccessCode(response.code);
   } catch (error) {
     console.error('更新购物车条目失败:', error);
     throw error;
@@ -106,14 +161,8 @@ export const updateCartItem = async (
  */
 export const removeFromCart = async (cartItemId: number): Promise<boolean> => {
   try {
-    const response = await api.delete<{ code: number; msg: string; data: object }>(
-      `/cart/${cartItemId}`
-    );
-
-    if (response.code === 0) {
-      return true;
-    }
-    return false;
+    const response = await api.delete<any>(`/cart/${cartItemId}`);
+    return isSuccessCode(response.code);
   } catch (error) {
     console.error('删除购物车条目失败:', error);
     throw error;
@@ -149,13 +198,13 @@ export const clearCart = async (): Promise<boolean> => {
 export const batchUpdateCart = async (itemIds: number[], selected = true): Promise<boolean> => {
   try {
     const promises = itemIds.map(id =>
-      api.put<{ code: number; msg: string; data: object }>(`/cart/${id}`, {
+      api.put<any>(`/cart/${id}`, {
         selected
       })
     );
 
     const responses = await Promise.all(promises);
-    return responses.every(r => r.code === 0);
+    return responses.every(r => isSuccessCode(r.code));
   } catch (error) {
     console.error('批量更新购物车失败:', error);
     throw error;
@@ -172,7 +221,8 @@ export const getCartTotal = async (): Promise<{ amount: number; items: CartItem[
 
     const selectedItems = cart.list.filter(item => item.selected);
     const amount = selectedItems.reduce((total, item) => {
-      return total + item.discountPrice * item.count;
+      const unit = item.discountPrice ?? item.price ?? 0;
+      return total + unit * item.count;
     }, 0);
 
     return {

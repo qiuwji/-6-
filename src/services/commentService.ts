@@ -1,4 +1,5 @@
 import { api } from './http';
+import { uploadImage, uploadImages, UploadData } from './uploadService';
 
 /**
  * 评论项
@@ -47,8 +48,16 @@ export interface LikeCommentResponse {
  */
 export interface PublishCommentRequest {
   content: string;
-  score: number;
-  images: string[];
+  score: number | string;
+  images?: Array<{
+    url: string;
+    file_name: string;
+    file_size: number;
+  }> | {
+    url: string;
+    file_name: string;
+    file_size: number;
+  };
 }
 
 /**
@@ -85,23 +94,63 @@ export const getBookComments = async (
  * @param images 评论图片URL数组
  */
 export const publishComment = async (
-  bookId: number,
+  bookId: number | string,
   content: string,
-  score: number,
-  images: string[] = []
+  score: number | string,
+  images?: File[] | UploadData[]
 ): Promise<object | null> => {
   try {
-    const response = await api.post<{ code: number; msg: string; data: object }>(
-      `/books/${bookId}/comments`,
-      {
-        content,
-        score,
-        images
-      }
-    );
+    let imagesPayload: any = undefined;
 
-    if (response.code === 0) {
-      return response.data;
+    if (images && images.length > 0) {
+      // 如果传入 File[]，先上传
+      if ((images as File[])[0] instanceof File) {
+        const files = images as File[];
+        const uploaded = await uploadImages(files, 'comment');
+        if (uploaded.length === 1) {
+          imagesPayload = {
+            url: uploaded[0].url,
+            file_name: uploaded[0].file_name,
+            file_size: uploaded[0].file_size
+          };
+        } else {
+          imagesPayload = uploaded.map(u => ({
+            url: u.url,
+            file_name: u.file_name,
+            file_size: u.file_size
+          }));
+        }
+      } else {
+        // 已经是 UploadData[]
+        const uploaded = images as UploadData[];
+        if (uploaded.length === 1) {
+          imagesPayload = {
+            url: uploaded[0].url,
+            file_name: uploaded[0].file_name,
+            file_size: uploaded[0].file_size
+          };
+        } else {
+          imagesPayload = uploaded.map(u => ({
+            url: u.url,
+            file_name: u.file_name,
+            file_size: u.file_size
+          }));
+        }
+      }
+    }
+
+    const body: any = {
+      content,
+      score: String(score)
+    };
+    if (imagesPayload !== undefined) {
+      body.images = imagesPayload;
+    }
+
+    const response = await api.post<any>(`/books/${bookId}/comments`, body);
+
+    if (response && (response.code === 0 || response.code === 200 || response.code === '0' || response.code === '200')) {
+      return response.data || {};
     }
     return null;
   } catch (error) {

@@ -3,7 +3,6 @@ import 'font-awesome/css/font-awesome.min.css';
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from 'react-router-dom';
 import { register } from '@/services/userService';
-import { useAuthStore } from '@/store/useAuthStore';
 
 interface RegisterFormData {
   username: string;
@@ -27,7 +26,6 @@ function RegisterPage() {
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -72,11 +70,11 @@ function RegisterPage() {
     try {
       const response = await register({
         username: formData.username,
-        email: formData.email,
+        account: formData.email,
         password: formData.password
       });
 
-      if (response && response.data) {
+      if (response) {
         // 注册成功，提示用户并跳转到登录页
         alert('注册成功！请使用邮箱或用户名登录');
         navigate('/login');

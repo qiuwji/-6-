@@ -41,6 +41,7 @@ const SearchResultPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [books, setBooks] = useState<BookCardProps[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [totalBooks, setTotalBooks] = useState(0);
 
   const totalPages = Math.ceil(totalBooks / PAGE_SIZE);
@@ -55,6 +56,7 @@ const SearchResultPage: React.FC = () => {
     const loadSearchResults = async () => {
       try {
         setLoading(true);
+        setError(null);
         const response = await searchBooks(keyword, currentPage, PAGE_SIZE);
         
         if (response) {
@@ -72,6 +74,7 @@ const SearchResultPage: React.FC = () => {
         }
       } catch (error) {
         console.error('搜索失败:', error);
+        setError('搜索失败，请检查后端是否启动');
         setBooks([]);
       } finally {
         setLoading(false);
@@ -126,30 +129,48 @@ const SearchResultPage: React.FC = () => {
 
         {/* ===== 右侧结果列表 ===== */}
         <div className="flex-1">
-          {/* 结果统计 */}
-          <div className="flex justify-between items-center mb-4">
-            <div></div>
-            <div className="text-sm text-gray-500">
-              显示 {startIndex + 1}–
-              {Math.min(endIndex, mockBooks.length)} 条，
-              共 {mockBooks.length} 条
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
             </div>
-          </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+              <i className="fa fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+              <p className="text-red-600 mb-2">{error}</p>
+              <p className="text-sm text-gray-600">后端地址: http://localhost:8080</p>
+            </div>
+          ) : books.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
+              <i className="fa fa-search text-6xl text-gray-300 mb-4"></i>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">未找到结果</h3>
+              <p className="text-gray-500">未找到与"{keyword}"相关的图书</p>
+            </div>
+          ) : (
+            <>
+              {/* 结果统计 */}
+              <div className="flex justify-between items-center mb-4">
+                <div></div>
+                <div className="text-sm text-gray-500">
+                  显示 {(currentPage - 1) * PAGE_SIZE + 1}–
+                  {Math.min(currentPage * PAGE_SIZE, totalBooks)} 条，
+                  共 {totalBooks} 条
+                </div>
+              </div>
 
-          <BookList books={currentPageBooks} />
+              <BookList books={books} />
 
-          {/* ===== 分页组件 ===== */}
-          <div className="mt-6 flex justify-center">
-            <div className="flex border border-gray-300 rounded-md overflow-hidden">
-              <button
-                className="px-4 py-2 border-r border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
-              >
-                上一页
-              </button>
+              {/* ===== 分页组件 ===== */}
+              <div className="mt-6 flex justify-center">
+                <div className="flex border border-gray-300 rounded-md overflow-hidden">
+                  <button
+                    className="px-4 py-2 border-r border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                  >
+                    上一页
+                  </button>
 
-              {Array.from({ length: totalPages }).map((_, idx) => {
+                  {Array.from({ length: totalPages }).map((_, idx) => {
                 const pageNum = idx + 1;
                 return (
                   <button
@@ -175,6 +196,8 @@ const SearchResultPage: React.FC = () => {
               </button>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

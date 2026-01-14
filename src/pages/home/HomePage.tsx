@@ -48,10 +48,12 @@ const HomePage: React.FC = () => {
   // 热门推荐图书数据
   const [hotBooks, setHotBooks] = useState<BookCardProps[]>([]);
   const [hotBooksLoading, setHotBooksLoading] = useState(true);
+  const [hotBooksError, setHotBooksError] = useState<string | null>(null);
 
   // 新书上架图书数据
   const [newBooks, setNewBooks] = useState<BookCardProps[]>([]);
   const [newBooksLoading, setNewBooksLoading] = useState(true);
+  const [newBooksError, setNewBooksError] = useState<string | null>(null);
 
   // 加载热门推荐和新书数据
   useEffect(() => {
@@ -59,6 +61,8 @@ const HomePage: React.FC = () => {
       try {
         setHotBooksLoading(true);
         setNewBooksLoading(true);
+        setHotBooksError(null);
+        setNewBooksError(null);
 
         // 并行加载热门书籍和新书
         const [hotResponse, newResponse] = await Promise.all([
@@ -73,7 +77,7 @@ const HomePage: React.FC = () => {
             bookName: book.bookName,
             imageUrl: book.imageUrl,
             author: book.author,
-            price: 0, // API未提供原价，这里设为0
+            price: 0,
             discountPrice: book.discountPrice,
             featureLabel: book.featureLabel,
             points: book.points
@@ -94,6 +98,8 @@ const HomePage: React.FC = () => {
         }
       } catch (error) {
         console.error('加载图书数据失败:', error);
+        setHotBooksError('加载热门推荐失败，请检查后端');
+        setNewBooksError('加载新书上架失败，请检查后端');
       } finally {
         setHotBooksLoading(false);
         setNewBooksLoading(false);
@@ -154,7 +160,22 @@ const HomePage: React.FC = () => {
           
           {/* 热门推荐图书列表 */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <BookList books={hotBooks} />
+            {hotBooksLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : hotBooksError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                <p className="text-red-600 mb-2">{hotBooksError}</p>
+                <p className="text-sm text-gray-600">后端地址: http://localhost:8080</p>
+              </div>
+            ) : hotBooks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>暂无热门推荐</p>
+              </div>
+            ) : (
+              <BookList books={hotBooks} />
+            )}
           </div>
         </div>
 
@@ -181,7 +202,22 @@ const HomePage: React.FC = () => {
           
           {/* 新书上架图书列表 */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <BookList books={newBooks} />
+            {newBooksLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : newBooksError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                <p className="text-red-600 mb-2">{newBooksError}</p>
+                <p className="text-sm text-gray-600">后端地址: http://localhost:8080</p>
+              </div>
+            ) : newBooks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>暂无新书上架</p>
+              </div>
+            ) : (
+              <BookList books={newBooks} />
+            )}
           </div>
         </div>
       </div>
