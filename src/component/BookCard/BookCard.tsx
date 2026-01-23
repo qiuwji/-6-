@@ -10,7 +10,7 @@ export interface BookCardProps {
   author: string;
   price: number;
   discountPrice?: number;
-  featureLabel?: string;
+  featureLabel?: string | null;
   points?: number;
   // 新增事件处理函数
   onCardClick?: (bookId: number) => void;
@@ -231,7 +231,7 @@ const BookCard: React.FC<BookCardProps> = ({
                 <button
                   onClick={handleConfirmAddToCart}
                   disabled={isLoading}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center shadow-md hover:shadow-lg"
+                  className="flex-1 bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center shadow-md hover:shadow-lg"
                 >
                   {isLoading ? (
                     <>

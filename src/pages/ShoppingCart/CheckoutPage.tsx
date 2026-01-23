@@ -70,7 +70,7 @@ const CheckoutPage = () => {
           console.log('📤 收货信息:', values);
           
           // 直接使用从本地存储获取的orderItems
-          const result = await createOrderFromCart(orderItems, {
+          await createOrderFromCart(orderItems, {
             shippingAddress: values.shippingAddress,
             phone: values.phone,
             receiver: values.receiver
