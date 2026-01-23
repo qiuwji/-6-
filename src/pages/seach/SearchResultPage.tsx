@@ -49,39 +49,51 @@ const SearchResultPage: React.FC = () => {
   /** ===== 当前页数据 ===== */
 
   // 加载搜索结果
-  useEffect(() => {
+  const loadSearchResults = async () => {
     if (!keyword.trim()) return;
 
-    const loadSearchResults = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await searchBooks(keyword, currentPage, PAGE_SIZE);
-        
-        if (response) {
-          setBooks(response.list.map(book => ({
-            bookId: book.id,
-            bookName: book.bookName,
-            imageUrl: book.bookCover,
-            author: book.author,
-            price: book.price,
-            discountPrice: book.price * book.discountRate,
-            featureLabel: book.featureLabel,
-            points: book.totalScore
-          })));
-          setTotalBooks(response.total);
-        }
-      } catch (error) {
-        console.error('搜索失败:', error);
-        setError('搜索失败，请检查后端是否启动');
-        setBooks([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 构建搜索参数
+      const searchParams = {
+        keyword,
+        page: currentPage,
+        size: PAGE_SIZE,
+        ...(categories.length > 0 && { categorys: categories.join(',') }),
+        ...(priceRange[0] > 0 && { minPrice: priceRange[0] }),
+        ...(priceRange[1] > 0 && { maxPrice: priceRange[1] }),
+        ...(star > 0 && { scoreMin: star * 1000 }) // 转换为API期望的格式
+      };
 
+      const response = await searchBooks(searchParams);
+      
+      if (response) {
+        setBooks(response.list.map(book => ({
+          bookId: book.id,
+          bookName: book.bookName,
+          imageUrl: book.bookCover,
+          author: book.author,
+          price: book.price,
+          discountPrice: book.price * book.discountRate,
+          featureLabel: book.featureLabel,
+          points: book.totalScore
+        })));
+        setTotalBooks(response.total);
+      }
+    } catch (error) {
+      console.error('搜索失败:', error);
+      setError('搜索失败，请检查后端是否启动');
+      setBooks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadSearchResults();
-  }, [keyword, currentPage]);
+  }, [keyword, currentPage, categories, priceRange, star]);
 
   /** ===== 应用筛选 ===== */
   const handleApplyFilter = (params: {

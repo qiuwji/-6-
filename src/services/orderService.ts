@@ -1,3 +1,4 @@
+// orderService.ts
 import { api } from './http';
 
 /**
@@ -65,34 +66,107 @@ export interface OrderDetailResponse {
 }
 
 /**
- * 下单请求体
+ * 下单请求体 - 根据接口文档修改
  */
 export interface CreateOrderRequest {
   items: Array<{
     book_id: number;
-    count: number;
+    quantity: number; // 注意：接口文档中这里是 quantity，不是 count
   }>;
+  shipping_address: string; // 收货地址（必需）
+  phone: string;           // 手机号（必需）
+  receiver: string;        // 收货人（必需）
+}
+
+/**
+ * 下单响应
+ */
+export interface CreateOrderResponse {
+  code: number;
+  msg: string;
+  data: object | null;
+}
+
+/**
+ * 创建订单时需要的参数
+ */
+export interface CreateOrderParams {
+  items: Array<{ book_id: number; quantity: number }>;
+  shippingAddress: string;
+  phone: string;
+  receiver: string;
 }
 
 /**
  * 立即下单
- * @param items 订单商品列表
+ * @param params 订单参数
+ * @returns 订单创建结果
  */
 export const createOrder = async (
-  items: Array<{ book_id: number; count: number }>
+  params: CreateOrderParams
 ): Promise<object | null> => {
   try {
-    const response = await api.post<{ code: number; msg: string; data: object }>(
+    console.log('📦 创建订单参数:', params);
+    
+    // 构造符合接口文档的请求体
+    const requestBody: CreateOrderRequest = {
+      items: params.items.map(item => ({
+        book_id: item.book_id,
+        quantity: item.quantity
+      })),
+      shipping_address: params.shippingAddress,
+      phone: params.phone,
+      receiver: params.receiver
+    };
+
+    console.log('📤 发送的请求体:', requestBody);
+
+    const response = await api.post<CreateOrderResponse>(
       '/orders',
-      { items }
+      requestBody
     );
 
-    if (response.code === 0 && response.data) {
-      return response.data;
+    console.log('✅ 下单响应:', response);
+    
+    if (response) {
+      return response;
     }
     return null;
   } catch (error) {
-    console.error('创建订单失败:', error);
+    console.error('❌ 创建订单失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 从购物车创建订单
+ * @param cartItems 购物车商品列表
+ * @param shippingInfo 收货信息
+ */
+export const createOrderFromCart = async (
+  cartItems: Array<{ book_id: number; quantity: number }>, 
+  shippingInfo: {
+    shippingAddress: string;
+    phone: string;
+    receiver: string;
+  }
+): Promise<object | null> => {
+  try {
+    console.log('📦 从购物车创建订单，商品:', cartItems);
+    
+    const validatedItems = cartItems.map(item => ({
+      book_id: item.book_id, 
+      quantity: item.quantity
+    }));
+    
+    console.log('✅ 验证后的商品:', validatedItems);
+    
+    return await createOrder({
+      items: validatedItems,
+      ...shippingInfo
+    });
+  } catch (error) {
+    console.error('❌ 从购物车创建订单失败:', error);
     throw error;
   }
 };

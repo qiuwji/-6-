@@ -1,8 +1,5 @@
 import api from './http';
 
-/**
- * 图书列表项
- */
 export interface BookListItem {
   id: number;
   bookName: string;
@@ -11,13 +8,14 @@ export interface BookListItem {
   price: number;
   discountRate: number;
   totalScore: number;
-  featureLabel: string;
+  featureLabel: string | null;
+  category: string | null;  
 }
 
 /**
- * 图书列表响应
+ * 图书列表响应（对应API返回的data字段）
  */
-export interface BooksListResponse {
+export interface BooksListData {
   list: BookListItem[];
   total: number;
   page: number;
@@ -30,15 +28,19 @@ export interface BooksListResponse {
 export interface GetBooksParams {
   page?: number;
   size?: number;
-  sort?: 'new' | 'hot';
-  category?: string;
   keyword?: string;
+  sort?: string;
+  category?: string;
+  categorys?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  scoreMin?: number;
 }
 
 /**
- * 图书详情
+ * 图书详情数据
  */
-export interface BookDetail {
+export interface BookDetailData {
   id: number;
   bookName: string;
   bookCover: string;
@@ -55,89 +57,70 @@ export interface BookDetail {
   isFavorited: boolean;
 }
 
-// ============ API 请求方法 ============
+export const getNewBooks = (page: number = 1, size: number = 8): Promise<BooksListData> => {
+  const url = `/books?page=${page}&size=${size}&sort=new`;
+  return api.get<BooksListData>(url);
+};
+
+export const getHotBooks = (page: number = 1, size: number = 8): Promise<BooksListData> => {
+  const url = `/books?page=${page}&size=${size}&sort=hot`;
+  return api.get<BooksListData>(url);
+};
 
 /**
  * 获取图书列表
- * @param page 页码（默认1）
- * @param size 每页数量（默认20）
- * @param sort 排序方式（new=新书, hot=热门）
- * @param category 分类
- * @param keyword 搜索关键词
- * @returns 图书列表
  */
-export const getBooks = (params: GetBooksParams = {}) => {
+export const getBooks = (params: GetBooksParams = {}): Promise<BooksListData> => {
   const defaultParams: any = {
     page: params.page || 1,
     size: params.size || 20,
     ...params,
   };
 
-  // 过滤掉undefined的参数
   Object.keys(defaultParams).forEach(
     key => defaultParams[key] === undefined && delete defaultParams[key]
   );
 
-  return api.get<BooksListResponse>('/books', {
+  return api.get<BooksListData>('/books', {
     params: defaultParams,
   });
 };
 
 /**
- * 获取新书上架列表
- * @param page 页码（默认1）
- * @param size 每页数量（默认20）
- * @returns 新书列表
+ * 按分类获取图书（单分类）
  */
-export const getNewBooks = (page: number = 1, size: number = 20) => {
-  return api.get<BooksListResponse>('/books', {
-    params: { page, size, sort: 'new' },
+export const getBooksByCategory = (category: string, page: number = 1, size: number = 20): Promise<BooksListData> => {
+  return api.get<BooksListData>('/books', {
+    params: { 
+      category, 
+      page, 
+      size 
+    },
   });
 };
 
 /**
- * 获取热门推荐图书列表
- * @param page 页码（默认1）
- * @param size 每页数量（默认20）
- * @returns 热门图书列表
+ * 搜索图书（支持多分类筛选）
  */
-export const getHotBooks = (page: number = 1, size: number = 20) => {
-  return api.get<BooksListResponse>('/books', {
-    params: { page, size, sort: 'hot' },
-  });
-};
+export const searchBooks = (params: GetBooksParams): Promise<BooksListData> => {
+  const defaultParams: any = {
+    page: params.page || 1,
+    size: params.size || 20,
+    ...params,
+  };
 
-/**
- * 搜索图书
- * @param keyword 搜索关键词
- * @param page 页码（默认1）
- * @param size 每页数量（默认20）
- * @returns 搜索结果
- */
-export const searchBooks = (keyword: string, page: number = 1, size: number = 20) => {
-  return api.get<BooksListResponse>('/books', {
-    params: { keyword, page, size },
-  });
-};
+  Object.keys(defaultParams).forEach(
+    key => defaultParams[key] === undefined && delete defaultParams[key]
+  );
 
-/**
- * 按分类获取图书
- * @param category 分类名称
- * @param page 页码（默认1）
- * @param size 每页数量（默认20）
- * @returns 分类下的图书列表
- */
-export const getBooksByCategory = (category: string, page: number = 1, size: number = 20) => {
-  return api.get<BooksListResponse>('/books', {
-    params: { category, page, size },
+  return api.get<BooksListData>('/books', {
+    params: defaultParams,
   });
 };
 
 /**
  * 获取图书详情
- * @param id 图书ID
- * @returns 图书详细信息
  */
-export const getBookDetail = (id: number) => {
-  return api.get<BookDetail>(`/books/${id}`);
+export const getBookDetail = (id: number): Promise<BookDetailData> => {
+  return api.get<BookDetailData>(`/books/${id}`);
 };

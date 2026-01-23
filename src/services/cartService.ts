@@ -1,6 +1,5 @@
+import { useAuthStore } from '@/store/useAuthStore';
 import { api } from './http';
-
-const isSuccessCode = (code: any) => code === 0 || code === 200;
 
 /**
  * 购物车条目（前端友好）
@@ -11,135 +10,116 @@ export interface CartItem {
   bookName: string;
   imageUrl?: string;
   author?: string;
-  price?: number; // unit_price
+  price?: number;
   discountPrice?: number;
-  quantity: number; // 和count一致
+  quantity: number;
   count: number;
-  subtotal?: number;
   selected?: boolean;
   addTime?: string;
   stock?: number;
-  maxPurchase?: number;
 }
 
 /**
- * 购物车响应（API原始）
+ * 加入购物车返回的响应数据
  */
-interface CartApiResponse {
-  code: number;
-  msg: string;
-  data: {
-    page: number;
-    size: number;
-    total: number;
-    list: Array<{
-      id?: number;
-      book_id?: number;
-      book_title?: string;
-      book_author?: string;
-      book_cover?: string;
-      unit_price?: number;
-      count?: number;
-      subtotal?: number;
-      selected?: boolean;
-      add_time?: string;
-      stock?: number;
-      max_purchase?: number;
-    }>;
-    summary?: {
-      total_items: number;
-      selected_items: number;
-      total_price: number;
-      selected_price: number;
-    };
-  };
+export interface AddToCartResponse {
+  cartItemId: number;   // 购物车条目ID
+  bookId: number;       // 图书ID
+  count: number;        // 购买数量
+  addTime: string;      // 添加时间
 }
 
+/**
+ * 注意：api.ts拦截器已经处理了响应，返回的是驼峰化的 data.data 部分
+ * 所以这里直接定义转换后的数据结构
+ */
 export interface CartResponse {
   page: number;
   size: number;
   total: number;
-  list: CartItem[];
-  summary?: {
-    totalItems: number;
-    selectedItems: number;
-    totalPrice: number;
-    selectedPrice: number;
-  };
+  list: Array<{
+    cartItemId?: number;  
+    bookId?: number;        
+    bookTitle?: string;    
+    bookCover?: string;   
+    bookPrice?: number;    
+    count?: number;       
+    addTime?: string;     
+  }>;
 }
 
 /**
  * 查看购物车
- * @param onlySelected 是否只显示选中的商品，默认false
  */
-export const getCart = async (onlySelected = false): Promise<CartResponse | null> => {
+export const getCart = async (onlySelected = false): Promise<{list: CartItem[], total: number} | null> => {
   try {
-    const response = await api.get<CartApiResponse>('/cart', {
-      params: {
-        only_selected: onlySelected
-      }
+    console.log('🛒 getCart 被调用');
+    
+    // api.ts 拦截器处理后，response 直接就是 data.data 部分
+    const response = await api.get<CartResponse>('/cart', {
+      params: { only_selected: onlySelected }
     });
 
-    if (isSuccessCode(response.code) && response.data) {
-      const data = response.data;
-      const mapped: CartResponse = {
-        page: data.page,
-        size: data.size,
-        total: data.total,
-        list: data.list.map(it => ({
-          id: it.id ?? 0,
-          bookId: it.book_id ?? 0,
-          bookName: it.book_title ?? '',
-          author: it.book_author,
-          imageUrl: it.book_cover,
-          price: it.unit_price,
-          quantity: it.count ?? 0,
-          count: it.count ?? 0,
-          subtotal: it.subtotal,
-          selected: it.selected,
-          addTime: it.add_time,
-          stock: it.stock,
-          maxPurchase: it.max_purchase
-        })),
-        summary: data.summary
-          ? {
-              totalItems: data.summary.total_items,
-              selectedItems: data.summary.selected_items,
-              totalPrice: data.summary.total_price,
-              selectedPrice: data.summary.selected_price
-            }
-          : undefined
+    console.log('📦 获取到的购物车数据（已驼峰化）:', response);
+
+    if (response) {
+      // 将驼峰化的数据映射到前端格式
+      const mappedList = response.list.map(item => ({
+        id: item.cartItemId || 0,
+        bookId: item.bookId || 0,
+        bookName: item.bookTitle || '未知书名',
+        imageUrl: item.bookCover || '',
+        author: '未知作者', // 后端没有返回
+        price: item.bookPrice || 0,
+        discountPrice: item.bookPrice || 0,
+        quantity: item.count || 0,
+        count: item.count || 0,
+        selected: false, // 后端没有返回
+        addTime: item.addTime,
+        stock: 99 // 默认库存
+      }));
+
+      console.log('✅ 映射后的购物车列表:', mappedList);
+      
+      return {
+        list: mappedList,
+        total: response.total || mappedList.length
       };
-      return mapped;
     }
+    
     return null;
   } catch (error) {
-    console.error('获取购物车失败:', error);
+    console.error('❌ 获取购物车失败:', error);
     throw error;
   }
 };
 
 /**
  * 加入购物车
- * @param bookId 书籍ID
- * @param count 数量，默认1
+ * @param bookId 图书ID
+ * @param count 购买数量，默认1
+ * @returns 加入后的购物车条目数量，失败返回-1
  */
-export const addToCart = async (bookId: number, count = 1): Promise<boolean> => {
+export const addToCart = async (bookId: number, count = 1): Promise<number> => {
   try {
-    // 新接口：POST /cart/{book_id}，body 包含 count
-    const response = await api.post<any>(`/cart/${bookId}`, { count });
-    return isSuccessCode(response.code);
+    console.log(`🛒 加入购物车: bookId=${bookId}, count=${count}`);
+    
+    const response = await api.post<AddToCartResponse>(`/cart/${bookId}`, { 
+      book_id: bookId,  
+      count 
+    });
+
+    console.log('加入购物车响应:', response);
+
+    return response.count;
   } catch (error) {
-    console.error('加入购物车失败:', error);
-    throw error;
+    console.error('❌ 加入购物车失败:', error);
+    return -1;
   }
 };
 
 /**
- * 更新购物车条目数量
- * @param cartItemId 购物车条目ID
- * @param count 新数量
- * @param selected 是否选中
+ * 更新购物车条目
  */
 export const updateCartItem = async (
   cartItemId: number,
@@ -147,90 +127,49 @@ export const updateCartItem = async (
   selected = true
 ): Promise<boolean> => {
   try {
-    const response = await api.put<any>(`/cart/${cartItemId}`, { count, selected });
-    return isSuccessCode(response.code);
+    await api.put(`/cart/${cartItemId}`, { count, selected });
+    return true;
   } catch (error) {
-    console.error('更新购物车条目失败:', error);
-    throw error;
+    console.error('❌ 更新购物车失败:', error);
+    return false;
   }
 };
 
 /**
  * 删除购物车条目
- * @param cartItemId 购物车条目ID
  */
 export const removeFromCart = async (cartItemId: number): Promise<boolean> => {
   try {
-    const response = await api.delete<any>(`/cart/${cartItemId}`);
-    return isSuccessCode(response.code);
-  } catch (error) {
-    console.error('删除购物车条目失败:', error);
-    throw error;
-  }
-};
-
-/**
- * 清空购物车（删除全部）
- */
-export const clearCart = async (): Promise<boolean> => {
-  try {
-    const cart = await getCart();
-    if (!cart || cart.list.length === 0) {
-      return true;
-    }
-
-    // 逐个删除购物车条目
-    for (const item of cart.list) {
-      await removeFromCart(item.id);
-    }
+    await api.delete(`/cart/${cartItemId}`);
     return true;
   } catch (error) {
-    console.error('清空购物车失败:', error);
-    throw error;
+    console.error('❌ 删除购物车失败:', error);
+    return false;
   }
 };
 
 /**
- * 批量更新购物车条目（选中状态）
- * @param itemIds 购物车条目ID数组
- * @param selected 是否选中
+ * 获取购物车条目数量并更新到 store
+ * @returns 购物车条目数量（不同商品的数量）
  */
-export const batchUpdateCart = async (itemIds: number[], selected = true): Promise<boolean> => {
+export const fetchAndUpdateCartCount = async (): Promise<number> => {
   try {
-    const promises = itemIds.map(id =>
-      api.put<any>(`/cart/${id}`, {
-        selected
-      })
-    );
-
-    const responses = await Promise.all(promises);
-    return responses.every(r => isSuccessCode(r.code));
+    const cartData = await getCart();
+    
+    // 计算条目数量：直接获取 list 的长度
+    const itemCount = cartData?.list?.length || 0;
+    
+    // 更新到 Zustand store
+    const { updateCartCount } = useAuthStore.getState();
+    updateCartCount(itemCount);
+    
+    console.log(`🛒 更新购物车条目数量: ${itemCount} 个商品`);
+    
+    return itemCount;
   } catch (error) {
-    console.error('批量更新购物车失败:', error);
-    throw error;
-  }
-};
-
-/**
- * 获取购物车中选中的商品总金额
- */
-export const getCartTotal = async (): Promise<{ amount: number; items: CartItem[] } | null> => {
-  try {
-    const cart = await getCart();
-    if (!cart) return null;
-
-    const selectedItems = cart.list.filter(item => item.selected);
-    const amount = selectedItems.reduce((total, item) => {
-      const unit = item.discountPrice ?? item.price ?? 0;
-      return total + unit * item.count;
-    }, 0);
-
-    return {
-      amount,
-      items: selectedItems
-    };
-  } catch (error) {
-    console.error('计算购物车总额失败:', error);
-    return null;
+    console.error('❌ 获取购物车数量失败:', error);
+    const { updateCartCount } = useAuthStore.getState();
+    updateCartCount(0); // 失败时重置为0
+    return 0;
   }
 };

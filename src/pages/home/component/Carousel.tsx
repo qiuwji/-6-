@@ -15,7 +15,7 @@ interface CarouselProps {
   infinite?: boolean;
   onChange?: (index: number) => void;
   initialIndex?: number;
-  className?: string; // 添加 className 属性
+  className?: string; 
 }
 
 const Carousel: React.FC<CarouselProps> = ({

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/Home/HomePage';
 import Header from './component/Header/Header';
@@ -10,8 +10,21 @@ import BookDetailPage from './pages/BookDetail/BookDetailPage';
 import CollectionsPage from './pages/Collections/CollectionsPage';
 import ShoppingCartPage from './pages/ShoppingCart/ShoppingCartPage';
 import CategoryPage from './pages/Category/CategoryPage';
+import { useAuthStore } from './store/useAuthStore';
+import { fetchAndUpdateCartCount } from './services/cartService';
+import CheckoutPage from './pages/ShoppingCart/CheckoutPage';
 
 const App: React.FC = () => {
+
+  const { token } = useAuthStore();
+
+  useEffect(() => {
+    // 只有在用户登录时才获取购物车数量
+    if (token) {
+      fetchAndUpdateCartCount();
+    }
+  }, [token]);
+
   return (
     <BrowserRouter>
       {/* 使用 flex 容器包裹整个应用 */}
@@ -34,18 +47,6 @@ const App: React.FC = () => {
               {/* 搜索 */}
               <Route path="/search" element={<SearchResultPage />} />
               
-              {/* 图书详情 - 这里有多种可能的路径设计 */}
-              {/* 方案1：使用嵌套路由 */}
-              {/* <Route path="/book/:bookId" element={<BookDetailPage />}>
-                <Route index element={<BookDetail />} />
-                <Route path="details" element={<BookDetailTabs />} />
-              </Route> */}
-              
-              {/* 方案2：使用独立页面（更常见） */}
-              {/* <Route path="/book/:bookId" element={<BookDetailPage />} />
-              <Route path="/book/:bookId/details" element={<BookDetailTabs />} /> */}
-              
-              {/* 方案3：参数传递方式（推荐） */}
               <Route path="/book/:bookId" element={<BookDetailPage />} />
               
               {/* 收藏 */}
@@ -55,6 +56,8 @@ const App: React.FC = () => {
               <Route path="/cart" element={<ShoppingCartPage />} />
 
               <Route path="/category" element={<CategoryPage />} />
+
+              <Route path="/checkout" element={<CheckoutPage />} />
               
               {/* 404 页面 */}
               <Route path="*" element={<div className="text-center py-20">404 - 页面不存在</div>} />

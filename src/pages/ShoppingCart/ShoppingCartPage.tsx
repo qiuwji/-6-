@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCart, updateCartItem, removeFromCart } from '@/services/cartService';
-import { createOrder } from '@/services/orderService';
 import { useIsLogin } from '@/store/useAuthStore';
+import { Modal } from 'antd';
+import { ExclamationCircleFilled } from '@ant-design/icons';
 
 interface CartItem {
   id: number;
@@ -18,6 +19,9 @@ interface CartItem {
   selected: boolean;
 }
 
+// 本地存储键名
+const SELECTED_CART_ITEMS_KEY = 'selected_cart_items';
+
 const ShoppingCartPage = () => {
   const navigate = useNavigate();
   const isLogin = useIsLogin();
@@ -25,9 +29,57 @@ const ShoppingCartPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSelectAll, setIsSelectAll] = useState(false);
 
+  // 从本地存储获取选中的商品
+  const getSelectedItemsFromStorage = (): Array<{book_id: number, quantity: number}> => {
+    try {
+      const saved = localStorage.getItem(SELECTED_CART_ITEMS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.error('读取选中商品失败:', error);
+      return [];
+    }
+  };
+
+  // 保存选中的商品到本地存储
+  const saveSelectedItemsToStorage = (items: CartItem[]) => {
+    try {
+      const selectedItems = items
+        .filter(item => item.selected)
+        .map(item => ({
+          book_id: item.bookId, // 注意：使用 book_id 而不是 bookId
+          quantity: item.quantity
+        }));
+      
+      localStorage.setItem(SELECTED_CART_ITEMS_KEY, JSON.stringify(selectedItems));
+      console.log('💾 保存选中商品到本地存储:', selectedItems);
+    } catch (error) {
+      console.error('保存选中商品失败:', error);
+    }
+  };
+
+  // 清理本地存储中无效的选中商品
+  const cleanupSelectedItemsStorage = (currentItems: CartItem[]) => {
+    try {
+      const savedItems = getSelectedItemsFromStorage();
+      const currentBookIds = new Set(currentItems.map(item => item.bookId));
+      
+      // 过滤掉购物车中不存在的商品
+      const validItems = savedItems.filter(item => currentBookIds.has(item.book_id));
+      
+      if (validItems.length !== savedItems.length) {
+        localStorage.setItem(SELECTED_CART_ITEMS_KEY, JSON.stringify(validItems));
+        console.log('🧹 清理了无效的选中商品');
+      }
+    } catch (error) {
+      console.error('清理选中商品失败:', error);
+    }
+  };
+
   // 加载购物车数据
   useEffect(() => {
     const loadCart = async () => {
+      console.log("加载购物车数据");
+      
       try {
         if (!isLogin) {
           navigate('/login');
@@ -36,8 +88,18 @@ const ShoppingCartPage = () => {
 
         setIsLoading(true);
         const cartData = await getCart();
-        if (cartData) {
-          setCartItems(cartData.list.map(item => ({
+        
+        console.log('🎯 cartService 返回的数据:', cartData);
+        
+        if (cartData && cartData.list) {
+          console.log('📊 购物车列表数据:', cartData.list);
+          
+          // 从本地存储加载之前选中的商品
+          const savedSelectedItems = getSelectedItemsFromStorage();
+          const savedSelectedBookIds = new Set(savedSelectedItems.map(item => item.book_id));
+          
+          // 初始化购物车项目，恢复之前选中的状态
+          const items = cartData.list.map(item => ({
             id: item.id,
             bookId: item.bookId,
             bookName: item.bookName,
@@ -46,10 +108,16 @@ const ShoppingCartPage = () => {
             price: item.price || 0,
             discountPrice: item.discountPrice || 0,
             originalPrice: item.price || 0,
-            quantity: item.count,
+            quantity: item.quantity,
             count: item.count,
-            selected: item.selected || false
-          })));
+            selected: savedSelectedBookIds.has(item.bookId) // 恢复选中状态
+          }));
+          
+          console.log('✅ 初始化的购物车项目:', items);
+          setCartItems(items);
+          
+          // 如果本地有选中的商品，但购物车中没有对应的商品，清理本地存储
+          cleanupSelectedItemsStorage(items);
         }
       } catch (error) {
         console.error('加载购物车失败:', error);
@@ -67,6 +135,13 @@ const ShoppingCartPage = () => {
     setIsSelectAll(allSelected);
   }, [cartItems]);
 
+  // 当选中的商品变化时，保存到本地存储
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      saveSelectedItemsToStorage(cartItems);
+    }
+  }, [cartItems]);
+
   // 计算总金额
   const calculateTotal = () => {
     const selectedItems = cartItems.filter(item => item.selected);
@@ -79,40 +154,29 @@ const ShoppingCartPage = () => {
   // 计算选中的商品数量
   const selectedCount = cartItems.filter(item => item.selected).length;
 
-  // 单个商品选择切换
-  const toggleItemSelection = async (id: number) => {
-    const item = cartItems.find(i => i.id === id);
-    if (!item) return;
-
-    try {
-      const success = await updateCartItem(id, item.count, !item.selected);
-      if (success) {
-        setCartItems(prev => prev.map(i => 
-          i.id === id ? { ...i, selected: !i.selected } : i
-        ));
-      }
-    } catch (error) {
-      console.error('更新购物车失败:', error);
-    }
+  // 单个商品选择切换 - 更新本地状态并保存到本地存储
+  const toggleItemSelection = (id: number) => {
+    setCartItems(prev => {
+      const newItems = prev.map(i => 
+        i.id === id ? { ...i, selected: !i.selected } : i
+      );
+      
+      // 更新全选状态
+      const allSelected = newItems.length > 0 && newItems.every(item => item.selected);
+      setIsSelectAll(allSelected);
+      
+      return newItems;
+    });
   };
 
-  // 全选/全不选
-  const toggleSelectAll = async () => {
+  // 全选/全不选 - 更新本地状态并保存到本地存储
+  const toggleSelectAll = () => {
     const newSelectAll = !isSelectAll;
     setIsSelectAll(newSelectAll);
-    
-    try {
-      const promises = cartItems.map(item =>
-        updateCartItem(item.id, item.count, newSelectAll)
-      );
-      await Promise.all(promises);
-      setCartItems(prev => prev.map(item => ({ ...item, selected: newSelectAll })));
-    } catch (error) {
-      console.error('批量更新购物车失败:', error);
-    }
+    setCartItems(prev => prev.map(item => ({ ...item, selected: newSelectAll })));
   };
 
-  // 修改商品数量
+  // 修改商品数量 - 同步到后端并更新本地存储
   const updateQuantity = async (id: number, newQuantity: number) => {
     if (newQuantity < 1) return;
     
@@ -131,65 +195,71 @@ const ShoppingCartPage = () => {
       }
     } catch (error) {
       console.error('更新商品数量失败:', error);
+      Modal.error({ title: '更新失败', content: '请稍后重试' });
     }
   };
 
   // 删除商品
-  const removeItem = async (id: number) => {
-    try {
-      const success = await removeFromCart(id);
-      if (success) {
-        setCartItems(prev => prev.filter(item => item.id !== id));
+  const removeItem = (id: number) => {
+    Modal.confirm({
+      title: '确认删除',
+      icon: <ExclamationCircleFilled />,
+      content: '你确定要删除该购物车商品吗？此操作不可恢复',
+      okText: '确认',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const success = await removeFromCart(id);
+          if (success) {
+            setCartItems(prev => prev.filter(item => item.id !== id));
+            Modal.success({ title: '删除成功', content: '商品已从购物车移除' });
+          }
+        } catch (error) {
+          console.error('删除商品失败:', error);
+          Modal.error({ title: '删除失败', content: '请稍后重试' });
+        }
       }
-    } catch (error) {
-      console.error('删除商品失败:', error);
-    }
+    });
   };
 
   // 批量删除选中的商品
-  const removeSelectedItems = async () => {
+  const removeSelectedItems = () => {
     const selectedItems = cartItems.filter(item => item.selected);
     if (selectedItems.length === 0) {
-      alert('请先选择要删除的商品');
+      Modal.warning({ title: '提示', content: '请先选择要删除的商品' });
       return;
     }
     
-    if (window.confirm(`确定要删除选中的 ${selectedItems.length} 件商品吗？`)) {
-      try {
-        const promises = selectedItems.map(item => removeFromCart(item.id));
-        await Promise.all(promises);
-        setCartItems(prev => prev.filter(item => !item.selected));
-      } catch (error) {
-        console.error('批量删除商品失败:', error);
+    Modal.confirm({
+      title: '确认删除',
+      icon: <ExclamationCircleFilled />,
+      content: `确定要删除选中的 ${selectedItems.length} 件商品吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const promises = selectedItems.map(item => removeFromCart(item.id));
+          await Promise.all(promises);
+          setCartItems(prev => prev.filter(item => !item.selected));
+          Modal.success({ title: '删除成功', content: '已删除选中的商品' });
+        } catch (error) {
+          console.error('批量删除商品失败:', error);
+          Modal.error({ title: '删除失败', content: '请稍后重试' });
+        }
       }
-    }
+    });
   };
 
   // 去结算
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     const selectedItems = cartItems.filter(item => item.selected);
     if (selectedItems.length === 0) {
-      alert('请先选择要结算的商品');
+      Modal.warning({ title: '提示', content: '请先选择要结算的商品' });
       return;
     }
 
-    try {
-      // 调用下单API
-      const orderItems = selectedItems.map(item => ({
-        book_id: item.bookId,
-        count: item.quantity
-      }));
-
-      const result = await createOrder(orderItems);
-      if (result) {
-        alert('下单成功，请前往订单页面查看');
-        // 清空购物车中已下单的商品
-        setCartItems(prev => prev.filter(item => !item.selected));
-      }
-    } catch (error) {
-      console.error('下单失败:', error);
-      alert('下单失败，请重试');
-    }
+    // 跳转到结算页面
+    navigate('/checkout');
   };
 
   // 继续购物
@@ -204,6 +274,7 @@ const ShoppingCartPage = () => {
         <div className="container mx-auto px-4">
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <span className="ml-3 text-gray-600">加载购物车中...</span>
           </div>
         </div>
       </div>
@@ -220,7 +291,9 @@ const ShoppingCartPage = () => {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
             <i className="fa fa-shopping-cart mr-3"></i>购物车
           </h1>
-          <p className="text-gray-500 mt-2">已选 {selectedCount} 件商品</p>
+          <p className="text-gray-500 mt-2">
+            已选 <span className="text-blue-600 font-semibold">{selectedCount}</span> 件商品，共 <span className="text-blue-600 font-semibold">{cartItems.length}</span> 件
+          </p>
         </div>
 
         {cartItems.length > 0 ? (
@@ -235,16 +308,19 @@ const ShoppingCartPage = () => {
                       type="checkbox"
                       checked={isSelectAll}
                       onChange={toggleSelectAll}
-                      className="h-5 w-5 text-blue-600 rounded"
+                      className="h-5 w-5 text-blue-600 rounded cursor-pointer"
                     />
-                    <span className="ml-2 text-gray-700">全选</span>
+                    <span className="ml-2 text-gray-700 cursor-pointer" onClick={toggleSelectAll}>
+                      全选
+                    </span>
                     <span className="ml-4 text-gray-500 text-sm">
                       ({selectedCount}/{cartItems.length})
                     </span>
                   </div>
                   <button 
                     onClick={removeSelectedItems}
-                    className="text-red-500 hover:text-red-700 flex items-center"
+                    className="text-red-500 hover:text-red-700 flex items-center cursor-pointer"
+                    disabled={selectedCount === 0}
                   >
                     <i className="fa fa-trash-can mr-1"></i>
                     删除选中
@@ -255,7 +331,7 @@ const ShoppingCartPage = () => {
               {/* 商品列表 */}
               <div className="space-y-4">
                 {cartItems.map((item) => (
-                  <div key={item.id} className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <div key={item.id} className="bg-white rounded-lg shadow-sm p-4 md:p-6 hover:shadow-md transition-shadow">
                     <div className="flex flex-col md:flex-row gap-4 md:gap-6">
                       {/* 选择框 */}
                       <div className="flex items-center">
@@ -263,7 +339,7 @@ const ShoppingCartPage = () => {
                           type="checkbox"
                           checked={item.selected}
                           onChange={() => toggleItemSelection(item.id)}
-                          className="h-5 w-5 text-blue-600 rounded"
+                          className="h-5 w-5 text-blue-600 rounded cursor-pointer"
                         />
                       </div>
 
@@ -271,7 +347,7 @@ const ShoppingCartPage = () => {
                       <img 
                         src={item.imageUrl} 
                         alt={item.bookName}
-                        className="w-24 h-32 object-cover rounded shadow"
+                        className="w-24 h-32 object-cover rounded shadow shrink-0"
                         onError={(e) => {
                           e.currentTarget.src = 'https://via.placeholder.com/120x160?text=Book+Cover';
                         }}
@@ -280,21 +356,23 @@ const ShoppingCartPage = () => {
                       {/* 商品信息 */}
                       <div className="flex-1">
                         <div className="flex flex-col md:flex-row md:items-start justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-800 hover:text-blue-600">
-                              <Link to={`/book/${item.bookId}`}>{item.bookName}</Link>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-800 hover:text-blue-600 mb-2">
+                              <Link to={`/book/${item.bookId}`} className="hover:underline">
+                                {item.bookName}
+                              </Link>
                             </h3>
-                            <p className="text-gray-500 mt-1">
+                            <p className="text-gray-500">
                               <i className="fa fa-user-pen mr-2 text-sm"></i>
                               {item.author}
                             </p>
                           </div>
 
                           {/* 价格区域 */}
-                          <div className="mt-3 md:mt-0">
+                          <div className="mt-3 md:mt-0 md:ml-4">
                             <div className="flex items-center">
                               {item.price > item.discountPrice && (
-                                <span className="text-gray-400 line-through mr-2">
+                                <span className="text-gray-400 line-through mr-2 text-sm">
                                   ¥{item.originalPrice.toFixed(2)}
                                 </span>
                               )}
@@ -318,7 +396,7 @@ const ShoppingCartPage = () => {
                           <div className="flex items-center mb-3 md:mb-0">
                             <button
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-l-md hover:bg-gray-100"
+                              className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-l-md hover:bg-gray-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               disabled={item.quantity <= 1}
                             >
                               <i className="fa fa-minus text-sm"></i>
@@ -327,17 +405,17 @@ const ShoppingCartPage = () => {
                               type="number"
                               value={item.quantity}
                               onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                              className="w-12 h-8 text-center border-t border-b border-gray-300"
+                              className="w-12 h-8 text-center border-t border-b border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                               min="1"
                             />
                             <button
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-r-md hover:bg-gray-100"
+                              className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-r-md hover:bg-gray-100 cursor-pointer"
                             >
                               <i className="fa fa-plus text-sm"></i>
                             </button>
                             <span className="text-gray-500 text-sm ml-2">
-                              ×{item.quantity}
+                              库存充足
                             </span>
                           </div>
 
@@ -350,7 +428,7 @@ const ShoppingCartPage = () => {
                           <div className="flex gap-3">
                             <button
                               onClick={() => removeItem(item.id)}
-                              className="text-gray-500 hover:text-red-500 flex items-center"
+                              className="text-gray-500 hover:text-red-500 flex items-center cursor-pointer"
                             >
                               <i className="fa fa-trash-can mr-1"></i>
                               删除
@@ -406,9 +484,9 @@ const ShoppingCartPage = () => {
                 <button
                   onClick={handleCheckout}
                   disabled={selectedCount === 0}
-                  className={`w-full py-3 rounded-md font-medium flex items-center justify-center transition-colors ${
+                  className={`w-full py-3 rounded-md font-medium flex items-center justify-center transition-all ${
                     selectedCount > 0 
-                      ? 'bg-red-500 hover:bg-red-600 text-white' 
+                      ? 'bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg cursor-pointer' 
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
@@ -418,9 +496,9 @@ const ShoppingCartPage = () => {
 
                 {/* 购物提示 */}
                 <div className="mt-4 text-sm text-gray-500 space-y-2">
-                  <p><i className="fa fa-check-circle mr-2 text-green-500"></i>正版保证</p>
+                  <p><i className="fa fa-check-circle mr-2 text-green-500"></i>正品保证</p>
                   <p><i className="fa fa-truck mr-2 text-blue-500"></i>全场满99元包邮</p>
-                  <p><i className="fa fa-shield mr-2 text-orange-500"></i>7天无理由退货</p>
+                  <p><i className="fa fa-shield mr-2 text-orange-500"></i>7天无理由退换</p>
                   <p><i className="fa fa-clock mr-2 text-purple-500"></i>24小时内发货</p>
                 </div>
               </div>
@@ -430,13 +508,15 @@ const ShoppingCartPage = () => {
           /* 空购物车状态 */
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <div className="flex flex-col items-center justify-center py-12">
-              <i className="fa fa-shopping-cart text-6xl text-gray-300 mb-4"></i>
+              <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                <i className="fa fa-shopping-cart text-4xl text-gray-400"></i>
+              </div>
               <h2 className="text-xl font-semibold text-gray-700 mb-2">购物车空空如也</h2>
               <p className="text-gray-500 mb-6">快去挑选心仪的图书吧～</p>
               <div className="flex gap-4">
                 <button
                   onClick={continueShopping}
-                  className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-md transition-colors flex items-center"
+                  className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-md transition-colors flex items-center shadow-md hover:shadow-lg"
                 >
                   <i className="fa fa-home mr-2"></i> 返回首页
                 </button>

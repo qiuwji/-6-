@@ -70,36 +70,38 @@ const HomePage: React.FC = () => {
           getNewBooks(1, 8)
         ]);
 
-        // 转换API响应格式为BookCardProps格式
-        if (hotResponse) {
+        // 转换API响应格式为BookCardProps格式，添加安全处理
+        if (hotResponse && hotResponse.list) {
           setHotBooks(hotResponse.list.map(book => ({
             bookId: book.id,
-            bookName: book.bookName,
-            imageUrl: book.bookCover,
-            author: book.author,
-            price: book.price,
-            discountPrice: book.price * book.discountRate,
-            featureLabel: book.featureLabel,
-            points: book.totalScore
+            bookName: book.bookName || '未知图书',
+            imageUrl: book.bookCover || '/default-book-cover.jpg',
+            author: book.author || '未知作者',
+            price: book.price || 0,
+            // 确保discountRate有默认值，防止NaN
+            discountPrice: book.price * (book.discountRate || 1),
+            // 确保featureLabel不为null
+            featureLabel: book.featureLabel || (book.category || '未知分类'),
+            points: book.totalScore || 0
           })));
         }
 
-        if (newResponse) {
+        if (newResponse && newResponse.list) {
           setNewBooks(newResponse.list.map(book => ({
             bookId: book.id,
-            bookName: book.bookName,
-            imageUrl: book.bookCover,
-            author: book.author,
-            price: book.price,
-            discountPrice: book.price * book.discountRate,
-            featureLabel: book.featureLabel,
-            points: book.totalScore
+            bookName: book.bookName || '未知图书',
+            imageUrl: book.bookCover || '/default-book-cover.jpg',
+            author: book.author || '未知作者',
+            price: book.price || 0,
+            discountPrice: book.price * (book.discountRate || 1),
+            featureLabel: book.featureLabel || (book.category || '未知分类'),
+            points: book.totalScore || 0
           })));
         }
       } catch (error) {
         console.error('加载图书数据失败:', error);
-        setHotBooksError('加载热门推荐失败，请检查后端');
-        setNewBooksError('加载新书上架失败，请检查后端');
+        setHotBooksError('加载热门推荐失败');
+        setNewBooksError('加载新书上架失败');
       } finally {
         setHotBooksLoading(false);
         setNewBooksLoading(false);
@@ -114,7 +116,7 @@ const HomePage: React.FC = () => {
       {/* 主容器 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* 轮播图部分 - 优化高度和比例 */}
+        {/* 轮播图部分 */}
         <div className="mb-10">
           <div className="carousel-wrapper rounded-xl overflow-hidden shadow-xl">
             <Carousel
@@ -139,7 +141,6 @@ const HomePage: React.FC = () => {
 
         {/* 热门推荐部分 */}
         <div className="mb-12">
-          {/* 标题 */}
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-3">
               <div className="w-1 h-8 bg-red-500 rounded"></div>
@@ -147,18 +148,8 @@ const HomePage: React.FC = () => {
                 热门推荐
               </h2>
             </div>
-            {/* <a 
-              href="/hot-books" 
-              className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm md:text-base font-medium transition-colors duration-200 hover:underline"
-            >
-              查看全部
-              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </a> */}
           </div>
           
-          {/* 热门推荐图书列表 */}
           <div className="bg-white rounded-xl shadow-md p-6">
             {hotBooksLoading ? (
               <div className="flex justify-center items-center h-32">
@@ -168,6 +159,12 @@ const HomePage: React.FC = () => {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
                 <p className="text-red-600 mb-2">{hotBooksError}</p>
                 <p className="text-sm text-gray-600">后端地址: http://localhost:8080</p>
+                <button 
+                  className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={() => window.location.reload()}
+                >
+                  重试
+                </button>
               </div>
             ) : hotBooks.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -181,7 +178,6 @@ const HomePage: React.FC = () => {
 
         {/* 新书上架部分 */}
         <div className="mb-12">
-          {/* 标题 */}
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-3">
               <div className="w-1 h-8 bg-blue-500 rounded"></div>
@@ -189,18 +185,8 @@ const HomePage: React.FC = () => {
                 新书上架
               </h2>
             </div>
-            {/* <a 
-              href="/new-books" 
-              className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm md:text-base font-medium transition-colors duration-200 hover:underline"
-            >
-              查看全部
-              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </a> */}
           </div>
           
-          {/* 新书上架图书列表 */}
           <div className="bg-white rounded-xl shadow-md p-6">
             {newBooksLoading ? (
               <div className="flex justify-center items-center h-32">
@@ -210,6 +196,12 @@ const HomePage: React.FC = () => {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
                 <p className="text-red-600 mb-2">{newBooksError}</p>
                 <p className="text-sm text-gray-600">后端地址: http://localhost:8080</p>
+                <button 
+                  className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={() => window.location.reload()}
+                >
+                  重试
+                </button>
               </div>
             ) : newBooks.length === 0 ? (
               <div className="text-center py-8 text-gray-500">

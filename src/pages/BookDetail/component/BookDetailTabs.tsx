@@ -107,9 +107,6 @@ const BookDetailTabs = ({ bookId }: BookDetailTabsProps) => {
         // const reviewsResponse = await fetch(`/api/book/${bookId}/comments?page=1&limit=10`);
         // const reviewsData = await reviewsResponse.json();
         // setReviews(reviewsData.comments);
-
-        // 以下是模拟数据结构，实际使用时应删除
-        // 设置默认值或保持为空
         setBookDetails([]);
         setCommentCount(0);
         setRatingDistribution({

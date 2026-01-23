@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { addCollection, removeCollection, isCollected } from '@/services/collectionService';
+import { addToCart } from '@/services/cartService';
+import { useAuthStore } from '@/store/useAuthStore';
 
 interface BookOverviewProps {
   bookName: string;
@@ -40,6 +42,9 @@ const BookOverview: React.FC<BookOverviewProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [selectedCity, setSelectedCity] = useState("广州市");
   const [favLoading, setFavLoading] = useState(false);
+  const [cartLoading, setCartLoading] = useState(false);
+
+  const incrementCart = useAuthStore((state) => state.incrementCart);
 
   // 计算当前价格
   const currentPrice = discount_rate ? price * discount_rate : price;
@@ -59,37 +64,52 @@ const BookOverview: React.FC<BookOverviewProps> = ({
 
     if (favLoading) return;
     setFavLoading(true);
+    
+    // 乐观更新：先更新UI状态
+    const newFavoritedState = !isFavorited;
+    setIsFavorited(newFavoritedState);
+    
     try {
-      if (isFavorited) {
-        // 取消收藏
-        const ok = await removeCollection(bookId);
-        if (ok) setIsFavorited(false);
-      } else {
+      let success = false;
+      if (newFavoritedState) {
+        // 添加收藏
         const res = await addCollection(bookId);
-        if (res) setIsFavorited(true);
+        success = res !== null;
+      } else {
+        // 取消收藏
+        success = await removeCollection(bookId);
+      }
+      
+      // 如果API调用失败，回滚状态
+      if (!success) {
+        console.error('收藏操作失败，回滚状态');
+        setIsFavorited(!newFavoritedState);
       }
     } catch (err) {
       console.error('切换收藏失败:', err);
+      // 失败时回滚状态
+      setIsFavorited(!newFavoritedState);
     } finally {
       setFavLoading(false);
     }
   };
 
   useEffect(() => {
-    // 初始查询收藏状态（若未通过 props 提供）
-    let mounted = true;
-    const check = async () => {
-      if (!bookId) return;
-      try {
-        const collected = await isCollected(bookId);
-        if (mounted) setIsFavorited(collected);
-      } catch (err) {
-        // ignore
-      }
-    };
-    check();
-    return () => { mounted = false; };
-  }, [bookId]);
+    // 如果没有提供初始收藏状态，才查询实际状态
+    if (initialIsFavorited === undefined && bookId) {
+      let mounted = true;
+      const check = async () => {
+        try {
+          const collected = await isCollected(bookId);
+          if (mounted) setIsFavorited(collected);
+        } catch (err) {
+          console.error('查询收藏状态失败:', err);
+        }
+      };
+      check();
+      return () => { mounted = false; };
+    }
+  }, [bookId, initialIsFavorited]);
 
   const handleDecreaseQuantity = () => {
     if (quantity > 1) {
@@ -107,8 +127,36 @@ const BookOverview: React.FC<BookOverviewProps> = ({
     console.log('立即购买！！！');
   }
 
-  const handleAddShopCart = () => {
-    console.log('加入购物车');
+  const handleAddShopCart = async () => {
+    if (!bookId) {
+      console.error('图书ID不存在');
+      return;
+    }
+
+    if (cartLoading) return;
+
+    // 确认提示
+    const confirmed = window.confirm(`确定要将《${bookName}》加入购物车吗？数量：${quantity}`);
+    if (!confirmed) return;
+
+    setCartLoading(true);
+    
+    try {
+      const account = await addToCart(bookId, quantity);
+      if (account != -1) {
+        alert('成功加入购物车！');
+        if (account == quantity) {
+          incrementCart(quantity); 
+        }
+      } else {
+        alert('加入购物车失败，请稍后再试');
+      }
+    } catch (error) {
+      console.error('加入购物车失败:', error);
+      alert('加入购物车失败，请稍后再试');
+    } finally {
+      setCartLoading(false);
+    }
   }
 
   // 生成星星数组，支持半星
@@ -289,8 +337,9 @@ const BookOverview: React.FC<BookOverviewProps> = ({
               <div className="flex flex-col sm:flex-row gap-4">
                 <button 
                   onClick={handleAddShopCart}
-                  className="cursor-pointer flex-1 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center">
-                  <i className="fa fa-shopping-cart mr-2"></i> 加入购物车
+                  disabled={cartLoading}
+                  className="cursor-pointer flex-1 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                  <i className="fa fa-shopping-cart mr-2"></i> {cartLoading ? '加入中...' : '加入购物车'}
                 </button>
                 <button 
                   onClick={handleBuyNow}
